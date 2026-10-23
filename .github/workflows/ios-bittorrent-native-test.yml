@@ -18,13 +18,20 @@ jobs:
       - name: Install native build dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libssl-dev ccache
       - uses: actions/cache@v4
+        id: native-cache
         with:
           path: ~/.cache/ccache
           key: native-transfer-${{ runner.os }}-${{ hashFiles('torrent/anitorrent/native/**') }}
+          restore-keys: native-transfer-${{ runner.os }}-
       - name: Build bridge and controlled swarm test
         run: |
           ccache --set-config=max_size=1G
           cmake -S torrent/anitorrent/tests/native -B build/native-transfer -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build/native-transfer --parallel 3
+      - uses: actions/cache/save@v4
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cache/ccache
+          key: native-transfer-${{ runner.os }}-${{ hashFiles('torrent/anitorrent/native/**') }}
       - name: Transfer and verify fixture
-        run: ctest --test-dir build/native-transfer --output-on-failure
+        run: ctest --test-dir build/native-transfer --output-on-failure --repeat until-fail:3

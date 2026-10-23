@@ -24,12 +24,26 @@ FetchContent_Declare(libtorrent
     GIT_TAG 74bc93a37a5e31c78f0aa02037a68fb9ac5deb41)
 FetchContent_MakeAvailable(libtorrent)
 
+# Metadata is fetched before the user selects any files. The default redundant
+# peer policy can disconnect the sole metadata peer while all priorities are zero.
+# Generate an explicit, checked adaptation of the pinned upstream session source.
+file(READ "${ani_cpp}/src/session_t.cpp" ani_session_source)
+set(ani_policy_needle "// s.set_bool(settings_pack::close_redundant_connections, true);")
+string(FIND "${ani_session_source}" "${ani_policy_needle}" ani_policy_offset)
+if(ani_policy_offset EQUAL -1)
+    message(FATAL_ERROR "Pinned Anitorrent connection policy changed; review the iOS adaptation")
+endif()
+string(REPLACE "${ani_policy_needle}"
+    "s.set_bool(settings_pack::close_redundant_connections, false);\n    s.set_int(settings_pack::min_reconnect_time, 5);"
+    ani_session_source "${ani_session_source}")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/ios_session_t.cpp" "${ani_session_source}")
+
 add_library(anitorrent_c STATIC
     anitorrent_c.cpp
     "${ani_cpp}/src/events.cpp"
     "${ani_cpp}/src/torrent_info_t.cpp"
     "${ani_cpp}/src/torrent_add_info_t.cpp"
-    "${ani_cpp}/src/session_t.cpp"
+    "${CMAKE_CURRENT_BINARY_DIR}/ios_session_t.cpp"
     "${ani_cpp}/src/torrent_handle_t.cpp"
     "${ani_cpp}/src/global_lock.cpp"
     "${ani_cpp}/src/plugin/peer_filter_plugin.cpp"
