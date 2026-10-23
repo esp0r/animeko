@@ -38,6 +38,8 @@ jobs:
           assert 'add("--enable-encoder=srt")' in s
           p.write_text(s.replace('add("--enable-encoder=srt")', 'add("--enable-encoder=srt")\n    add("--enable-encoder=movtext")'))
           PY
+      - name: Fetch pinned FFmpeg source
+        run: git submodule update --init --depth 1 mediamp-ffmpeg/ffmpeg
       - name: Build FFmpeg Apple runtime
         run: ./gradlew :mediamp-ffmpeg:ffmpegAppleXcframeworkZip -Pandroid.compile.sdk=36 --no-configuration-cache --max-workers=3
       - uses: actions/upload-artifact@v4
@@ -129,14 +131,14 @@ jobs:
           runtime=$(find "$PWD/ffmpeg-runtime" -name '*.zip' -print -quit)
           test -n "$runtime"
           echo "ani.ios.ffmpegRuntime=$runtime" >> gradle.properties
+      - name: Run native bridge and HTTP range tests
+        run: ./gradlew :torrent:anitorrent:iosSimulatorArm64Test --tests '*NativeBridgeTest*' :app:shared:app-data:iosSimulatorArm64Test --tests '*TorrentHttpRangeTest*' --tests '*TorrentPlaybackProxyTest*' --tests '*LocalPlaybackPreparationTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
       - name: Build unsigned IPA
         run: |
           (while sleep 60; do echo '--- Build resource usage ---'; ps -axo pid,rss,%cpu,comm | sort -nrk 2 | head -8; done) &
           monitor_pid=$!
           trap 'kill "$monitor_pid" 2>/dev/null || true' EXIT
           ./gradlew :app:ios:podInstall :app:ios:buildDebugIpa -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --stacktrace --console=plain --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
-      - name: Run native bridge and HTTP range tests
-        run: ./gradlew :torrent:anitorrent:iosSimulatorArm64Test --tests '*NativeBridgeTest*' :app:shared:app-data:iosSimulatorArm64Test --tests '*TorrentHttpRangeTest*' --tests '*TorrentPlaybackProxyTest*' --tests '*LocalPlaybackPreparationTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
       - uses: actions/upload-artifact@v4
         with:
           name: animeko-ios-bittorrent-unsigned
