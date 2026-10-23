@@ -83,10 +83,16 @@ jobs:
           printf '%s\n' 'ani.enable.ios=true' 'ani.build.framework=true' 'ani.android.abis=arm64-v8a' > local.properties
           xcodebuild -version
           pod --version
+          sysctl hw.memsize hw.ncpu
+          df -h /
       - name: Build unsigned IPA
-        run: ./gradlew :app:ios:podInstall :app:ios:buildDebugIpa -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx5g -Dfile.encoding=UTF-8" -Dkotlin.daemon.jvm.options=-Xmx5g --max-workers=2
+        run: |
+          (while sleep 60; do echo '--- Build resource usage ---'; ps -axo pid,rss,%cpu,comm | sort -nrk 2 | head -8; done) &
+          monitor_pid=$!
+          trap 'kill "$monitor_pid" 2>/dev/null || true' EXIT
+          ./gradlew :app:ios:podInstall :app:ios:buildDebugIpa -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --info --stacktrace --console=plain --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
       - name: Run native bridge and HTTP range tests
-        run: ./gradlew :torrent:anitorrent:iosSimulatorArm64Test --tests '*NativeBridgeTest*' :app:shared:app-data:iosSimulatorArm64Test --tests '*TorrentHttpRangeTest*' --tests '*TorrentPlaybackProxyTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx5g -Dfile.encoding=UTF-8" -Dkotlin.daemon.jvm.options=-Xmx5g --max-workers=2
+        run: ./gradlew :torrent:anitorrent:iosSimulatorArm64Test --tests '*NativeBridgeTest*' :app:shared:app-data:iosSimulatorArm64Test --tests '*TorrentHttpRangeTest*' --tests '*TorrentPlaybackProxyTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
       - uses: actions/upload-artifact@v4
         with:
           name: animeko-ios-bittorrent-unsigned
