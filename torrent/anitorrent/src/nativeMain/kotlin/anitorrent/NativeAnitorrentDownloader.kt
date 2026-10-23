@@ -23,6 +23,7 @@ import me.him188.ani.datasources.api.topic.FileSize.Companion.bytes
 import me.him188.ani.utils.coroutines.IO_
 import me.him188.ani.utils.io.SystemPath
 import me.him188.ani.utils.logging.error
+import me.him188.ani.app.torrent.anitorrent.AnitorrentTorrentDownloader.Companion.logger
 import kotlin.coroutines.CoroutineContext
 import kotlin.native.ref.createCleaner
 import platform.Foundation.NSNotificationCenter
