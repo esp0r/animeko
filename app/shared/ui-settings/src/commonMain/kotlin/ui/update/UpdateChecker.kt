@@ -9,6 +9,7 @@
 
 package me.him188.ani.app.ui.update
 
+import me.him188.ani.app.platform.appUpdatesEnabled
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
@@ -43,6 +44,7 @@ class UpdateChecker(
         releaseClass: ReleaseClass,
         currentVersion: String = currentAniBuildConfig.versionName,
     ): NewVersion? {
+        if (!appUpdatesEnabled) return null
         require(serverUrls.isNotEmpty()) { "serverUrls must not be empty" }
         HttpClient(getPlatformKtorEngine()) {
             expectSuccess = true

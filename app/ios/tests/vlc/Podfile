@@ -1,0 +1,5 @@
+install! 'cocoapods', :integrate_targets => false
+platform :ios, '16.0'
+target 'VlcHarness' do
+  pod 'MobileVLCKit', '3.7.4'
+end

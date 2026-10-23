@@ -9,6 +9,7 @@
 
 package me.him188.ani.app.ui.main
 
+import me.him188.ani.app.platform.appUpdatesEnabled
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -471,6 +472,7 @@ internal fun BottomNotifierStack(
 
 @Composable
 private fun BoxScope.UpdateNotifierWithVersionExpiryCheck() {
+    if (!appUpdatesEnabled) return
     // Force check when version expired
     val updateVm = viewModel { AppUpdateViewModel() }
     val versionExpiryService = remember { KoinPlatform.getKoin().get<VersionExpiryService>() }

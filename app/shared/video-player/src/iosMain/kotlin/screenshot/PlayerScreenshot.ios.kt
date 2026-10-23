@@ -13,7 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.DpRect
 import org.openani.mediamp.MediampPlayer
 
-/** iOS 使用 AVKit 后端, 它没有读取当前帧的能力, 因此不支持截图, 播放器不显示截图按钮. */
+/** iOS 播放器尚未接入截图保存接口, 播放器不显示截图按钮. */
 private object UnsupportedPlayerScreenshotCapturer : PlayerScreenshotCapturer {
     override fun isSupported(player: MediampPlayer): Boolean = false
 

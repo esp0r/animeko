@@ -9,6 +9,7 @@
 
 package me.him188.ani.app.ui.update
 
+import me.him188.ani.app.platform.appUpdatesEnabled
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,7 @@ fun BoxScope.UpdateNotifier(
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     layoutKind: UpdateNotifierLayoutKind = UpdateNotifierDefaults.layoutKind(),
 ) {
+    if (!appUpdatesEnabled) return
     SideEffect {
         // 用户每次从别的页面回到主页, 都会触发一次检查.
         viewModel.startAutomaticCheckLatestVersion()
@@ -113,6 +115,7 @@ fun BoxScope.UpdateNotifier(
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     layoutKind: UpdateNotifierLayoutKind = UpdateNotifierDefaults.layoutKind(),
 ) {
+    if (!appUpdatesEnabled) return
     val uriHandler = LocalUriHandler.current
 
     // Track whether the user dismisses the notification in this session

@@ -9,6 +9,7 @@
 
 package me.him188.ani.app.ui.settings.tabs.app
 
+import me.him188.ani.app.platform.appUpdatesEnabled
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
@@ -209,7 +210,7 @@ fun AppSettingsTab(
     modifier: Modifier = Modifier
 ) {
     SettingsTab(modifier) {
-        SoftwareUpdateGroup(softwareUpdateGroupState)
+        if (appUpdatesEnabled) SoftwareUpdateGroup(softwareUpdateGroupState)
         AppearanceGroup(uiSettings)
         ThemeGroup(themeSettings)
         PlayerGroup(

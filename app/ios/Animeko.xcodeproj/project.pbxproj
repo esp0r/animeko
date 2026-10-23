@@ -20,6 +20,7 @@
 		E20000000000000000000003 = {isa = PBXBuildFile; fileRef = E10000000000000000000003; };
 		E20000000000000000000004 = {isa = PBXBuildFile; fileRef = E10000000000000000000004; };
 		E20000000000000000000005 = {isa = PBXBuildFile; fileRef = E10000000000000000000005; };
+		F20000000000000000000010 = {isa = PBXBuildFile; fileRef = F10000000000000000000010; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -53,6 +54,7 @@
 		E10000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = text; name = "Anime4K_Restore_CNN_M.glsl"; path = "../../utils/video-enhancement-shader-provider/src/commonMain/composeResources/files/shaders/Anime4K_Restore_CNN_M.glsl"; sourceTree = SOURCE_ROOT; };
 		E10000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = text; name = "Anime4K_Upscale_CNN_x2_M.glsl"; path = "../../utils/video-enhancement-shader-provider/src/commonMain/composeResources/files/shaders/Anime4K_Upscale_CNN_x2_M.glsl"; sourceTree = SOURCE_ROOT; };
 		E10000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = text; name = "ewa_lanczossharp.frag"; path = "../../utils/video-enhancement-shader-provider/src/commonMain/composeResources/files/shaders/exo-effects/ewa_lanczossharp.frag"; sourceTree = SOURCE_ROOT; };
+		F10000000000000000000010 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SwiftVlcPlayer.swift; path = Animeko/SwiftVlcPlayer.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -88,6 +90,7 @@
 		7555FF72242A565900829871 = {
 			isa = PBXGroup;
 			children = (
+				F10000000000000000000010,
 				E10000000000000000000000,
 				E10000000000000000000001,
 				E10000000000000000000002,
@@ -267,6 +270,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F20000000000000000000010,
 				E20000000000000000000000,
 				E20000000000000000000001,
 				2152FB042600AC8F00CF470E /* iOSApp.swift in Sources */,

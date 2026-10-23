@@ -9,6 +9,7 @@
 
 package me.him188.ani.app.domain.foundation
 
+import me.him188.ani.app.platform.appUpdatesEnabled
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +31,7 @@ class DefaultVersionExpiryService : VersionExpiryService {
     override val state: StateFlow<VersionExpiryState?> = _state.asStateFlow()
 
     override fun onVersionExpired(latestVersion: String?) {
+        if (!appUpdatesEnabled) return
         _state.value = VersionExpiryState(latestVersion)
     }
 }

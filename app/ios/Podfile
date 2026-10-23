@@ -5,6 +5,7 @@ target 'Animeko' do
   platform :ios, '16.0'
   pod 'application', :path => '../shared/application'
 
+  pod 'MobileVLCKit', '3.7.4'
   pod 'Sentry', '~> 8.49.0'
 end
 

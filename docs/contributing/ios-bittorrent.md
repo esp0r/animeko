@@ -49,8 +49,25 @@ loopback-only HTTP server, with GET, HEAD and single byte-range responses. The
 same adapter serves completed local cache files. Progress, prefetch and sharing
 recover the original source through `unwrapTorrentPlayback`.
 
-This adapter does not change AVKit's container or codec support. A file can be
-downloaded successfully even when AVKit cannot play its format, such as MKV.
+iOS playback uses MobileVLCKit 3.7.4. VLC opens the original MKV/MP4/HTTP media
+and decodes video, audio and embedded subtitles directly, including ASS styling
+and font attachments. Downloaded files are not converted. The Swift bridge is
+implemented by `SwiftVlcPlayer`; `IosVlcMediampPlayer` adapts it to MediaMP's
+session state machine, audio/subtitle selectors, seeking, volume and speed.
+The VLC surface supports fit/stretch/crop. The AVPlayer-only Anime4K renderer
+and picture-in-picture layer are unavailable on this surface.
+
+The sideloaded iOS build disables upstream app update checks, downloads,
+installation entry points, notifications and version-expiry prompts through
+`appUpdatesEnabled`, independently of previously saved settings. Other platforms
+retain their update behavior.
+
+MobileVLCKit is provided by VideoLAN under LGPL 2.1. CocoaPods pins the official
+3.7.4 distribution and verifies its published checksum. Sources and build
+instructions: https://code.videolan.org/videolan/VLCKit/tree/3.0.
+Run `bash app/ios/tests/vlc/run.sh` on macOS for the native MKV regression test.
+It compiles the production Swift player, plays a synthetic H.264/AAC/SRT MKV,
+and checks dimensions, duration, tracks, pause, seek, speed and end of media.
 
 Resume data is requested periodically and when the application resigns active.
 The shared cache database restores queued work after relaunch. iOS may suspend

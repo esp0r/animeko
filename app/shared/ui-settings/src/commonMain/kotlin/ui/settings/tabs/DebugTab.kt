@@ -10,6 +10,7 @@
 package me.him188.ani.app.ui.settings.tabs
 
 import androidx.compose.material3.Text
+import me.him188.ani.app.platform.appUpdatesEnabled
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -124,7 +125,7 @@ fun DebugTab(
         }
         val platform = LocalPlatform.current
         val supportsDevBuilds = remember(platform) { DevBuildPackageSpec.forPlatform(platform) != null }
-        if (supportsDevBuilds) {
+        if (appUpdatesEnabled && supportsDevBuilds) {
             Group(title = { Text(stringResource(Lang.settings_debug_dev_builds)) }, useThinHeader = true) {
                 TextItem(
                     title = { Text(stringResource(Lang.settings_debug_dev_builds_install_commit)) },

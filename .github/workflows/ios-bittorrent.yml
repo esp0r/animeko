@@ -13,6 +13,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  vlc:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test native MKV playback
+        run: bash app/ios/tests/vlc/run.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-vlc-test
+          path: app/ios/tests/vlc/build/native-vlc.log
   native:
     runs-on: macos-15
     timeout-minutes: 90
@@ -39,7 +51,7 @@ jobs:
             torrent/anitorrent/build/native/${{ matrix.sdk }}/include/
           if-no-files-found: error
   ipa:
-    needs: native
+    needs: [native, vlc]
     runs-on: macos-15
     timeout-minutes: 180
     steps:

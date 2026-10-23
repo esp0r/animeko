@@ -9,6 +9,7 @@
 
 package me.him188.ani.app.ui.update
 
+import me.him188.ani.app.platform.appUpdatesEnabled
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.platform.UriHandler
@@ -148,6 +149,7 @@ open class AppUpdateViewModel(
 
     // 一小时内只会检查一次
     fun startAutomaticCheckLatestVersion() {
+        if (!appUpdatesEnabled) return
         if (autoCheckTasker.isRunning.value) {
             return
         } else {
@@ -166,6 +168,7 @@ open class AppUpdateViewModel(
     fun startCheckLatestVersion(
         uriHandler: UriHandler?
     ) {
+        if (!appUpdatesEnabled) return
         autoCheckTasker.launch {
             val updateSettings = updateSettings.first()
 
@@ -198,6 +201,7 @@ open class AppUpdateViewModel(
     }
 
     fun startDownload(ver: NewVersion, uriHandler: UriHandler?) {
+        if (!appUpdatesEnabled) return
         downloadTasker.launch {
             val settings = updateSettings.first()
             if (!settings.inAppDownload) {
@@ -239,6 +243,7 @@ open class AppUpdateViewModel(
     }
 
     fun install(context: ContextMP) {
+        if (!appUpdatesEnabled) return
         val state = presentationFlow.value.state as? AppUpdateState.Downloaded
             ?: return
         installationTasker.launch(Dispatchers.Main) {

@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitView
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
+import me.him188.ani.app.videoplayer.player.IosVlcMediampPlayer
 import me.him188.ani.app.platform.SwiftBridge
 import org.openani.mediamp.MediampPlayer
 import org.openani.mediamp.avkit.AVKitMediampPlayer
@@ -37,6 +38,10 @@ actual fun VideoPlayer(
     player: MediampPlayer,
     modifier: Modifier
 ) {
+    if (player is IosVlcMediampPlayer) {
+        key(player) { UIKitView(factory = { player.impl.view }, modifier = modifier) }
+        return
+    }
     check(player is AVKitMediampPlayer) { "MediampPlayer in iOS must be AVKitMediampPlayer, but got $player" }
 
     val avPlayer = player.impl

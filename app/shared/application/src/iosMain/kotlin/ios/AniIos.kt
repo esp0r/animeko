@@ -88,7 +88,7 @@ import me.him188.ani.app.ui.foundation.widgets.ToastViewModel
 import me.him188.ani.app.ui.foundation.widgets.Toaster
 import me.him188.ani.app.ui.main.AniApp
 import me.him188.ani.app.ui.main.AniAppContent
-import me.him188.ani.app.videoplayer.player.AniAVKitMediampPlayerFactory
+import me.him188.ani.app.videoplayer.player.IosVlcMediampPlayerFactory
 import me.him188.ani.utils.analytics.Analytics
 import me.him188.ani.utils.httpdownloader.HttpDownloader
 import me.him188.ani.utils.io.SystemCacheDir
@@ -368,7 +368,7 @@ fun getIosModules(
         )
     }
     single<MediampPlayerFactory<*>> {
-        AniAVKitMediampPlayerFactory()
+        IosVlcMediampPlayerFactory()
     }
     single<HlsPlaybackPreparer> { PlatformHlsPlaybackPreparer(get()) }
     single<MediaSaveDirProvider> {

@@ -74,6 +74,8 @@ struct ContentView: View {
 }
 
 class SwiftBridgeImpl : ISwiftBridge {
+    func createVlcPlayer() -> IosVlcPlayer { SwiftVlcPlayer() }
+
     func createEnhancedPlayerView(player: AVPlayer, onUnavailable: @escaping () -> Void) -> UIView {
         EnhancedPlayerView(player: player, onUnavailable: onUnavailable)
     }
