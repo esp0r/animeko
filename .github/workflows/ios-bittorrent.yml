@@ -13,6 +13,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  native:
+    runs-on: macos-15
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        sdk: [iphoneos, iphonesimulator]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build native BitTorrent library
+        run: bash torrent/anitorrent/native/build-apple.sh ${{ matrix.sdk }} torrent/anitorrent/build/native/${{ matrix.sdk }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: anitorrent-${{ matrix.sdk }}
+          path: |
+            torrent/anitorrent/build/native/${{ matrix.sdk }}/lib/
+            torrent/anitorrent/build/native/${{ matrix.sdk }}/include/
+          if-no-files-found: error
   ipa:
     runs-on: macos-15
     timeout-minutes: 180
