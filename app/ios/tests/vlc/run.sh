@@ -14,8 +14,12 @@ xcrun swiftc -sdk "$sdk" -target "${arch}-apple-ios16.0-simulator" \
   -framework VideoToolbox -framework CoreMedia -framework CFNetwork \
   -framework Security -framework CoreText -framework OpenGLES -framework QuartzCore \
   -lc++ -lxml2 -lz -lbz2 -liconv -Xlinker -ObjC \
+  -Xlinker -rpath -Xlinker @executable_path/Frameworks \
   BridgeStub.swift ../../Animeko/SwiftVlcPlayer.swift main.swift -o "$app/VlcHarness"
 cp fixture.mkv "$app/"
+mkdir -p "$app/Frameworks"
+cp -R "$framework" "$app/Frameworks/"
+codesign --force --sign - "$app/Frameworks/MobileVLCKit.framework"
 cat > "$app/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
