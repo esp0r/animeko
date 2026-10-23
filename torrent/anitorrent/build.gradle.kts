@@ -30,7 +30,12 @@ kotlin {
             definitionFile.set(file("src/nativeInterop/cinterop/anitorrent.def"))
             includeDirs(file("native/include"))
             extraOpts("-libraryPath", output.get().dir("lib").asFile.absolutePath)
-            tasks.named(interopProcessingTaskName).configure { dependsOn(nativeBuild) }
+            tasks.named(interopProcessingTaskName).configure {
+                dependsOn(nativeBuild)
+                inputs.file(output.map { it.file("lib/libanitorrent_c.a") })
+                    .withPropertyName("anitorrentNativeArchive")
+                    .withPathSensitivity(PathSensitivity.NONE)
+            }
         }
     }
     android {
