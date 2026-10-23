@@ -7,6 +7,8 @@
  * https://github.com/open-ani/ani/blob/main/LICENSE
  */
 
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+
 plugins {
     id("ani.kmp-library")
     alias(libs.plugins.kotlin.plugin.serialization)
@@ -15,6 +17,22 @@ plugins {
 }
 
 kotlin {
+    targets.withType<KotlinNativeTarget>().configureEach {
+        val sdk = if (name == "iosArm64") "iphoneos" else "iphonesimulator"
+        val output = layout.buildDirectory.dir("native/$sdk")
+        val nativeBuild = tasks.register<Exec>("buildAnitorrent${name.replaceFirstChar { it.uppercase() }}") {
+            inputs.dir("native")
+            outputs.file(output.map { it.file("lib/libanitorrent_c.a") })
+            commandLine("bash", file("native/build-apple.sh"), sdk, output.get().asFile)
+            onlyIf { !providers.gradleProperty("ani.anitorrent.prebuilt").map(String::toBoolean).getOrElse(false) }
+        }
+        compilations.getByName("main").cinterops.create("anitorrent") {
+            definitionFile.set(file("src/nativeInterop/cinterop/anitorrent.def"))
+            includeDirs(file("native/include"))
+            extraOpts("-libraryPath", output.get().dir("lib").asFile.absolutePath)
+            tasks.named(interopProcessingTaskName).configure { dependsOn(nativeBuild) }
+        }
+    }
     android {
         namespace = "me.him188.ani.torrent.anitorrent"
     }

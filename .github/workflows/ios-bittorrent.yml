@@ -31,10 +31,19 @@ jobs:
             torrent/anitorrent/build/native/${{ matrix.sdk }}/include/
           if-no-files-found: error
   ipa:
+    needs: native
     runs-on: macos-15
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: anitorrent-iphoneos
+          path: torrent/anitorrent/build/native/iphoneos
+      - uses: actions/download-artifact@v4
+        with:
+          name: anitorrent-iphonesimulator
+          path: torrent/anitorrent/build/native/iphonesimulator
       - name: Install JBR 21
         shell: bash
         run: |
@@ -65,7 +74,7 @@ jobs:
           xcodebuild -version
           pod --version
       - name: Build unsigned IPA
-        run: ./gradlew :app:ios:podInstall :app:ios:buildDebugIpa --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx5g -Dfile.encoding=UTF-8" -Dkotlin.daemon.jvm.options=-Xmx5g --max-workers=2
+        run: ./gradlew :app:ios:podInstall :app:ios:buildDebugIpa -Pani.anitorrent.prebuilt=true --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx5g -Dfile.encoding=UTF-8" -Dkotlin.daemon.jvm.options=-Xmx5g --max-workers=2
       - uses: actions/upload-artifact@v4
         with:
           name: animeko-ios-bittorrent-unsigned

@@ -20,5 +20,7 @@ internal actual fun createAnitorrentTorrentDownloader(
     torrentDownloaderConfig: TorrentDownloaderConfig,
     parentCoroutineContext: CoroutineContext
 ): AnitorrentTorrentDownloader<*, *> {
-    throw UnsupportedOperationException("AnitorrentEngine is not supported")
+    return NativeAnitorrentDownloader(
+        rootDataDirectory, httpFileDownloader, torrentDownloaderConfig, parentCoroutineContext,
+    )
 }

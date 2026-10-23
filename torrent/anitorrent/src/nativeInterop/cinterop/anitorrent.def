@@ -1,0 +1,4 @@
+headers = anitorrent_c.h
+package = me.him188.ani.app.torrent.anitorrent.binding
+staticLibraries = libanitorrent_c.a
+linkerOpts = -lc++ -lz -framework Security -framework SystemConfiguration
