@@ -26,9 +26,7 @@ val mediampFfmpegIOSRuntime = libs.mediamp.ffmpeg.runtime.ios.xcframework.get()
 
 val mediampFfmpegAppleRuntimeDirectory = layout.buildDirectory.dir("mediamp-ffmpeg/apple-runtime")
 val extractMediampFfmpegAppleRuntime = tasks.register<ExtractAppleXcframeworkTask>("extractMediampFfmpegAppleRuntime") {
-    val customRuntime = providers.gradleProperty("ani.ios.ffmpegRuntime")
-    if (customRuntime.isPresent) archives.from(rootProject.file(customRuntime.get()))
-    else archives.from(mediampFfmpegAppleRuntimePath)
+    archives.from(mediampFfmpegAppleRuntimePath)
     outputDirectory.set(mediampFfmpegAppleRuntimeDirectory)
 }
 

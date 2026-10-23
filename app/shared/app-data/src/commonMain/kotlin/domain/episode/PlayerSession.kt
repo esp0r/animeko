@@ -25,8 +25,6 @@ import me.him188.ani.app.domain.media.hls.HlsPlaybackPreparer
 import me.him188.ani.app.domain.media.hls.HlsPlaybackProxySession
 import me.him188.ani.app.domain.media.player.prefetch.MediaPrefetchController
 import me.him188.ani.app.domain.media.fetch.MediaFetchSession
-import me.him188.ani.app.domain.media.player.data.LocalPlaybackPreparation
-import me.him188.ani.app.domain.media.player.data.prepareLocalPlayback
 import me.him188.ani.app.domain.media.player.data.TorrentMediaData
 import me.him188.ani.app.domain.media.player.data.TorrentPlaybackProxy
 import me.him188.ani.app.domain.media.resolver.EpisodeMetadata
@@ -51,7 +49,6 @@ import me.him188.ani.utils.platform.Platform
 import me.him188.ani.utils.platform.currentPlatform
 import org.koin.core.Koin
 import org.openani.mediamp.MediampPlayer
-import org.openani.mediamp.PlaybackErrorCode
 import org.openani.mediamp.PlaybackException
 import org.openani.mediamp.errorOrNull
 import org.openani.mediamp.source.MediaData
@@ -83,7 +80,6 @@ class PlayerSession(
     private val getMediaSourceInstancesUseCase: GetMediaSourceInstancesUseCase by koin.inject()
 
     private val hlsPlaybackProxySessionFlow = MutableStateFlow<HlsPlaybackProxySession?>(null)
-    private var localPlaybackPreparation: LocalPlaybackPreparation? = null
     private var torrentPlaybackProxy: TorrentPlaybackProxy? = null
     private var hlsPlaybackProxySession: HlsPlaybackProxySession?
         get() = hlsPlaybackProxySessionFlow.value
@@ -150,7 +146,6 @@ class PlayerSession(
         }
 
         var preparedHlsPlaybackProxySession: HlsPlaybackProxySession? = null
-        var preparedLocalPlayback: LocalPlaybackPreparation? = null
         var preparedTorrentPlaybackProxy: TorrentPlaybackProxy? = null
         try {
             _videoLoadingStateFlow.value = VideoLoadingState.ResolvingSource
@@ -173,11 +168,10 @@ class PlayerSession(
             val openedEngineKey = (data as? TorrentMediaData)?.engineKey ?: resolvedEngineKey
             listener.onOpened(openedEngineKey, start.elapsedNow())
 
-            val playableData = prepareLocalPlayback(data).also { preparedLocalPlayback = it }.data
             val preparedData = if (data is SeekableInputMediaData && currentPlatform() == Platform.Ios) {
                 TorrentPlaybackProxy.create(data).also { preparedTorrentPlaybackProxy = it }.data
             } else prepareHlsPlaybackIfEnabled(
-                playableData,
+                data,
                 media,
                 startPositionHintMillis = startPositionMillis.takeIf { it > 0L },
             ).also {
@@ -188,8 +182,6 @@ class PlayerSession(
             logger.info { "Set media data to player at ${startPositionMillis}ms: $preparedData" }
             // v2: setMediaData 挂起直到媒体真正打开, 播放意图和起播位置随打开一并生效.
             player.setMediaData(preparedData, playWhenReady = true, startPositionMillis = startPositionMillis)
-            localPlaybackPreparation = preparedLocalPlayback
-            preparedLocalPlayback = null
             torrentPlaybackProxy = preparedTorrentPlaybackProxy
             preparedTorrentPlaybackProxy = null
             hlsPlaybackProxySession = preparedHlsPlaybackProxySession
@@ -239,14 +231,13 @@ class PlayerSession(
             throw e
         } catch (e: PlaybackException) { // during player.setMediaData, 播放器拒绝了这个媒体
             logger.warn { IllegalStateException("Player rejected the media data", e) }
-            fail(if (e.code == PlaybackErrorCode.UNSUPPORTED_FORMAT) VideoLoadingState.UnsupportedMedia else VideoLoadingState.UnknownError(e))
+            fail(VideoLoadingState.UnknownError(e))
             stopPlayback()
         } catch (e: Throwable) {
             logger.error { IllegalStateException("Failed to resolve video source with unknown error", e) }
             fail(VideoLoadingState.UnknownError(e))
             stopPlayback()
         } finally {
-            preparedLocalPlayback?.close()
             preparedTorrentPlaybackProxy?.close()
             preparedHlsPlaybackProxySession?.close()
         }
@@ -258,8 +249,8 @@ class PlayerSession(
     }
 
     fun close() {
-        player.close()
         closeHlsPlaybackProxySession()
+        player.close()
     }
 
     private suspend fun stopPlayer() {
@@ -301,8 +292,6 @@ class PlayerSession(
     }
 
     private fun closeHlsPlaybackProxySession() {
-        localPlaybackPreparation?.close()
-        localPlaybackPreparation = null
         torrentPlaybackProxy?.close()
         torrentPlaybackProxy = null
         hlsPlaybackProxySession?.close()
