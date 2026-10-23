@@ -1,5 +1,6 @@
 #include "anitorrent_c.h"
 #include <libtorrent/bencode.hpp>
+#include <libtorrent/alert_types.hpp>
 #include <libtorrent/create_torrent.hpp>
 #include <libtorrent/magnet_uri.hpp>
 #include <libtorrent/session.hpp>
@@ -39,10 +40,21 @@ static void on_event(void *context, int kind, uint32_t, int, const void *payload
     }
 }
 template<typename Predicate>
-static void poll_until(ani_session *session, events &result, const char *phase, Predicate done) {
+static void poll_until(ani_session *session, ani_handle *handle, lt::session &seed,
+                       events &result, const char *phase, Predicate done) {
     std::cout << "Waiting for " << phase << std::endl;
     auto deadline = std::chrono::steady_clock::now() + 60s;
     while (!done()) {
+        std::vector<lt::alert *> alerts;
+        seed.pop_alerts(&alerts);
+        for (const auto *alert : alerts) std::cout << "seeder: " << alert->message() << std::endl;
+        if (std::chrono::steady_clock::now() >= deadline) {
+            std::cout << "Client state: " << ani_handle_state(handle) << std::endl;
+            ani_handle_peers(handle, [](void *, const ani_peer *p) {
+                std::cout << "Peer " << p->ip_addr << " downloaded=" << p->total_download
+                          << " flags=" << p->flags << std::endl;
+            }, nullptr);
+        }
         require(std::chrono::steady_clock::now() < deadline, std::string("Timed out waiting for ") + phase);
         require(ani_session_poll(session, on_event, &result) == 0, "Poll");
         std::this_thread::sleep_for(20ms);
@@ -79,6 +91,8 @@ int main() {
         config.set_bool(lt::settings_pack::enable_lsd, false);
         config.set_bool(lt::settings_pack::enable_upnp, false);
         config.set_bool(lt::settings_pack::enable_natpmp, false);
+        config.set_int(lt::settings_pack::alert_mask, lt::alert_category::error |
+            lt::alert_category::peer | lt::alert_category::status);
         lt::session seed(config);
         lt::add_torrent_params parameters;
         parameters.ti = info;
@@ -103,7 +117,7 @@ int main() {
         result.resume_path = (root / "download" / "fastresume").string();
         require(ani_session_resume(client.get()) == 0, "Resume session");
         require(ani_handle_resume(handle.get()) == 0, "Start metadata discovery");
-        poll_until(client.get(), result, "metadata", [&] { return result.metadata; });
+        poll_until(client.get(), handle.get(), seed, result, "metadata", [&] { return result.metadata; });
         auto metadata = ani_handle_info(handle.get());
         require(metadata != nullptr, "Magnet metadata");
         require(ani_info_file_count(metadata) == 1, "File count");
@@ -112,11 +126,11 @@ int main() {
         require(!result.complete, "Unselected files must not download");
         require(ani_handle_priority(handle.get(), 0, 7) == 0, "Select file");
         require(ani_handle_resume(handle.get()) == 0, "Resume handle");
-        poll_until(client.get(), result, "file completion", [&] { return result.complete; });
+        poll_until(client.get(), handle.get(), seed, result, "file completion", [&] { return result.complete; });
         require(read_file(root / "download" / "episode.mp4") == original, "Transferred bytes differ");
         result.resumed = false;
         require(ani_handle_post_resume(handle.get()) == 0, "Request resume data");
-        poll_until(client.get(), result, "resume data", [&] { return result.resumed; });
+        poll_until(client.get(), handle.get(), seed, result, "resume data", [&] { return result.resumed; });
         require(fs::file_size(result.resume_path) > 0, "Resume file is empty");
         require(ani_session_remove(client.get(), handle.get()) == 0, "Remove torrent");
         handle.reset();
