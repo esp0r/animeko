@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.him188.ani.app.domain.media.hls.HlsPlaybackProxySession
 import me.him188.ani.app.domain.media.player.data.TorrentMediaData
+import me.him188.ani.app.domain.media.player.data.unwrapTorrentPlayback
 import me.him188.ani.utils.coroutines.IO_
 import me.him188.ani.utils.logging.info
 import me.him188.ani.utils.logging.logger
@@ -109,6 +110,7 @@ class MediaPrefetchController(
      * [MediaPrefetchRequest.requireBufferedUntilMillis] 之前的内容是否已缓冲好. 先发出 `false`, 满足后发出 `true` 并结束 (之后不再关闭).
      */
     private fun bufferedGate(media: MediaData?, request: MediaPrefetchRequest): Flow<Boolean> {
+        val media = media?.unwrapTorrentPlayback()
         val buffered: Flow<Boolean> = when (media) {
             is UriMediaData -> {
                 val buffering = player.features[Buffering]
@@ -147,7 +149,7 @@ class MediaPrefetchController(
     }
 
     private suspend fun apply(target: Target) {
-        when (val media = target.media) {
+        when (val media = target.media?.unwrapTorrentPlayback()) {
             is TorrentMediaData -> {
                 val byteRange = target.range?.let { range ->
                     estimateTorrentByteRange(range, target.durationMillis ?: 0L, media.fileLength())

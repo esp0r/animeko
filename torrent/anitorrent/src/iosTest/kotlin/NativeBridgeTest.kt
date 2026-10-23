@@ -97,7 +97,7 @@ class NativeBridgeTest {
     private class ResumeCapture(val path: String, var saved: Boolean = false)
     companion object {
         private val saveResume = staticCFunction { context: COpaquePointer?, kind: Int, _: UInt, _: Int, data: COpaquePointer? ->
-            if (kind == ANI_RESUME) {
+            if (kind == ANI_RESUME.toInt()) {
                 val capture = context!!.asStableRef<ResumeCapture>().get()
                 val copy = ani_resume_copy(data)
                 if (copy != null) {

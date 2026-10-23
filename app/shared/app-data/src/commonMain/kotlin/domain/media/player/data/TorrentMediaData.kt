@@ -81,7 +81,7 @@ class TorrentMediaData(
 }
 
 /** The seek-bar preview [this] media supplies in place of the player's, if any. */
-fun MediaData.suppliedFramePreview(): FramePreview? = (this as? TorrentMediaData)?.framePreview
+fun MediaData.suppliedFramePreview(): FramePreview? = (unwrapTorrentPlayback() as? TorrentMediaData)?.framePreview
 
 private object NoFramePreview : FramePreview {
     override suspend fun getPreviewFrame(positionMillis: Long, maxWidth: Int, maxHeight: Int): PreviewFrame? = null

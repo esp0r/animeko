@@ -29,7 +29,7 @@ sealed interface FileMediaData {
     val filename: String?
 }
 
-val MediaData.filenameOrNull: String? get() = (this as? FileMediaData)?.filename
+val MediaData.filenameOrNull: String? get() = (unwrapTorrentPlayback() as? FileMediaData)?.filename
 
 class NetStats(
     /**

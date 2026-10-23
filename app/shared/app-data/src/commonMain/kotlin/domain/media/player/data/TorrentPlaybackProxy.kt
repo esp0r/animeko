@@ -1,6 +1,8 @@
 package me.him188.ani.app.domain.media.player.data
 
 import kotlinx.atomicfu.atomic
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Semaphore
@@ -12,6 +14,7 @@ import me.him188.ani.app.domain.media.hls.HlsProxyServer
 import me.him188.ani.app.domain.media.hls.PlatformHlsProxyServerFactory
 import me.him188.ani.utils.coroutines.IO_
 import org.openani.mediamp.source.UriMediaData
+import org.openani.mediamp.source.MediaData
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -24,7 +27,7 @@ internal class TorrentPlaybackProxy private constructor(
 ) : AutoCloseable {
     private val closed = atomic(false)
     private val readers = Semaphore(4)
-    val data = UriMediaData("http://127.0.0.1:${server.port}$path", emptyMap(), source.extraFiles)
+    val data = UriMediaData("http://127.0.0.1:${server.port}$path", emptyMap(), source.extraFiles, source.options)
 
     private suspend fun handle(request: HlsProxyRequest, sink: HlsProxyResponseSink) {
         if (request.path != path) {
@@ -77,18 +80,25 @@ internal class TorrentPlaybackProxy private constructor(
 
     override fun close() {
         if (closed.compareAndSet(false, true)) {
+            synchronized(sourcesLock) { sources.remove(data) }
             server.close()
             source.close()
         }
     }
 
     companion object {
+        private val sourcesLock = SynchronizedObject()
+        private val sources = mutableMapOf<MediaData, TorrentMediaData>()
+
+        fun sourceFor(data: MediaData): TorrentMediaData? = synchronized(sourcesLock) { sources[data] }
+
         @OptIn(ExperimentalUuidApi::class)
         suspend fun create(source: TorrentMediaData): TorrentPlaybackProxy {
             val server = PlatformHlsProxyServerFactory.create()
             try {
-                return TorrentPlaybackProxy(source, server, "/${Uuid.random()}/video").also {
-                    server.start(it::handle)
+                return TorrentPlaybackProxy(source, server, "/${Uuid.random()}/video").also { proxy ->
+                    server.start(proxy::handle)
+                    synchronized(sourcesLock) { sources[proxy.data] = source }
                 }
             } catch (error: Throwable) {
                 server.close()
@@ -97,6 +107,9 @@ internal class TorrentPlaybackProxy private constructor(
         }
     }
 }
+
+/** Restores BT identity for progress, prefetch and sharing while AVKit consumes a loopback URI. */
+fun MediaData.unwrapTorrentPlayback(): MediaData = TorrentPlaybackProxy.sourceFor(this) ?: this
 
 /** A null result means malformed or unsatisfiable. A missing Range selects the whole file. */
 internal fun parseTorrentHttpRange(header: String?, size: Long): LongRange? {

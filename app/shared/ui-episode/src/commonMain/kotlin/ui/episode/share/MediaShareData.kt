@@ -11,6 +11,7 @@ package me.him188.ani.app.ui.episode.share
 
 import androidx.compose.runtime.Immutable
 import me.him188.ani.app.domain.media.player.data.TorrentMediaData
+import me.him188.ani.app.domain.media.player.data.unwrapTorrentPlayback
 import me.him188.ani.datasources.api.Media
 import me.him188.ani.datasources.api.topic.ResourceLocation
 import org.openani.mediamp.source.MediaData
@@ -28,7 +29,7 @@ data class MediaShareData(
             media: Media?,
             mediaData: MediaData?,
         ): MediaShareData {
-            val realDownload = when (mediaData) {
+            val realDownload = when (val mediaData = mediaData?.unwrapTorrentPlayback()) {
                 is UriMediaData -> {
                     ResourceLocation.HttpStreamingFile(mediaData.uri)
                 }

@@ -1,4 +1,5 @@
 headers = anitorrent_c.h
 package = me.him188.ani.app.torrent.anitorrent.binding
+nonStrictEnums = ani_event_kind
 staticLibraries = libanitorrent_c.a
 linkerOpts = -lc++ -lz -framework Security -framework SystemConfiguration

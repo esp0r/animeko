@@ -68,8 +68,20 @@ internal class NativeAnitorrentDownloader(
         extraTrackers = config.extraTrackers
         scope.launch(Dispatchers.IO_) {
             while (isActive) {
-                native.access { session ->
-                    nativeCheck(ani_session_poll(session, eventCallback, reference.asCPointer()))
+                val events = mutableListOf<NativeEvent>()
+                val eventReference = StableRef.create(events)
+                try {
+                    native.access { session ->
+                        nativeCheck(ani_session_poll(session, eventCallback, eventReference.asCPointer()))
+                    }
+                } finally {
+                    eventReference.dispose()
+                }
+                // Session callbacks acquire their own locks and may call the engine.
+                // Dispatch after releasing the native lock to avoid lock-order cycles.
+                events.forEach { event ->
+                    runCatching { processEvent(event) }
+                        .onFailure { error -> logger.error(error) { "Native torrent event failed" } }
                 }
                 delay(100)
             }
@@ -84,28 +96,25 @@ internal class NativeAnitorrentDownloader(
 
     private fun shouldBlock(peer: CPointer<ani_peer>): Boolean = filter?.shouldBlock(NativePeer(peer.pointed)) ?: false
 
-    private fun event(kind: Int, id: Long, index: Int, payload: COpaquePointer?) {
-        // Copy borrowed payloads before dispatch: creation can buffer events.
-        val stats = if (kind == ANI_STATS) payload?.reinterpret<ani_stats>()?.pointed?.let(::NativeStats) else null
-        val resume = if (kind == ANI_RESUME) NativeResumeData(nativePointer(ani_resume_copy(payload))) else null
-        if (kind == ANI_REMOVED && id == 0L) {
-            val name = payload?.reinterpret<ByteVar>()?.toKString() ?: return
+    private fun processEvent(event: NativeEvent) = with(event) {
+        if (kind == ANI_REMOVED.toInt() && id == 0L) {
+            val name = name ?: return@with
             runBlocking(Dispatchers.IO_) {
                 withTimeoutOrNull(1_000) { openSessions.value.values.firstOrNull { it.getName() == name } }
             }?.onTorrentRemoved()
-            return
+            return@with
         }
         dispatchToSession(id) { session ->
             when (kind) {
-                ANI_CHECKED -> session.onTorrentChecked()
-                ANI_METADATA -> session.onMetadataReceived()
-                ANI_PIECE_DOWNLOADING -> session.onPieceDownloading(index)
-                ANI_PIECE_FINISHED -> session.onPieceFinished(index)
-                ANI_FINISHED -> session.onTorrentFinished()
-                ANI_STATS -> stats?.let(session::onStatsUpdate)
-                ANI_FILE_COMPLETED -> session.onFileCompleted(index)
-                ANI_REMOVED -> session.onTorrentRemoved()
-                ANI_RESUME -> resume?.let(session::onSaveResumeData)
+                ANI_CHECKED.toInt() -> session.onTorrentChecked()
+                ANI_METADATA.toInt() -> session.onMetadataReceived()
+                ANI_PIECE_DOWNLOADING.toInt() -> session.onPieceDownloading(index)
+                ANI_PIECE_FINISHED.toInt() -> session.onPieceFinished(index)
+                ANI_FINISHED.toInt() -> session.onTorrentFinished()
+                ANI_STATS.toInt() -> stats?.let(session::onStatsUpdate)
+                ANI_FILE_COMPLETED.toInt() -> session.onFileCompleted(index)
+                ANI_REMOVED.toInt() -> session.onTorrentRemoved()
+                ANI_RESUME.toInt() -> resume?.let(session::onSaveResumeData)
             }
         }
     }
@@ -122,7 +131,10 @@ internal class NativeAnitorrentDownloader(
     companion object {
         private val eventCallback = staticCFunction { ctx: COpaquePointer?, kind: Int, id: UInt, index: Int, data: COpaquePointer? ->
             try {
-                ctx!!.asStableRef<NativeAnitorrentDownloader>().get().event(kind, id.toLong(), index, data)
+                val stats = if (kind == ANI_STATS.toInt()) data?.reinterpret<ani_stats>()?.pointed?.let(::NativeStats) else null
+                val resume = if (kind == ANI_RESUME.toInt()) NativeResumeData(nativePointer(ani_resume_copy(data))) else null
+                val name = if (kind == ANI_REMOVED.toInt()) data?.reinterpret<ByteVar>()?.toKString() else null
+                ctx!!.asStableRef<MutableList<NativeEvent>>().get().add(NativeEvent(kind, id.toLong(), index, stats, resume, name))
             } catch (error: Throwable) {
                 logger.error(error) { "Native torrent event failed" }
             }
@@ -137,6 +149,15 @@ internal class NativeAnitorrentDownloader(
         }
     }
 }
+
+private data class NativeEvent(
+    val kind: Int,
+    val id: Long,
+    val index: Int,
+    val stats: NativeStats?,
+    val resume: NativeResumeData?,
+    val name: String?,
+)
 
 internal class NativeTorrentManagerSession(config: TorrentDownloaderConfig, context: COpaquePointer) :
     SynchronizedObject(), TorrentManagerSession<NativeTorrentHandle, NativeTorrentAddInfo> {

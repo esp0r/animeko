@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import me.him188.ani.app.domain.media.player.data.DownloadingMediaData
+import me.him188.ani.app.domain.media.player.data.unwrapTorrentPlayback
 import me.him188.ani.datasources.api.topic.FileSize
 import me.him188.ani.datasources.api.topic.FileSize.Companion.bytes
 import me.him188.ani.utils.coroutines.sampleWithInitial
@@ -40,7 +41,7 @@ val PLAYER_DOWNLOAD_SPEED_SAMPLE_PERIOD: Duration = 1.seconds
  */
 @OptIn(ExperimentalMediampApi::class)
 fun MediampPlayer.downloadSpeedFlow(): Flow<FileSize> = mediaData.flatMapLatest { data ->
-    when (data) {
+    when (val data = data?.unwrapTorrentPlayback()) {
         is DownloadingMediaData -> data.networkStats.map { it.downloadSpeed.toFileSizeOrUnspecified() }
         is UriMediaData -> features[NetworkStats]?.downloadSpeedBytesPerSecond
             ?.sampleWithInitial(PLAYER_DOWNLOAD_SPEED_SAMPLE_PERIOD)

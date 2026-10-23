@@ -24,6 +24,7 @@ import me.him188.ani.app.domain.media.player.MediaCacheProgressInfo
 import me.him188.ani.app.domain.media.player.TorrentMediaCacheProgressProvider
 import me.him188.ani.app.domain.media.player.buildRangeCacheProgressInfo
 import me.him188.ani.app.domain.media.player.data.TorrentMediaData
+import me.him188.ani.app.domain.media.player.data.unwrapTorrentPlayback
 import me.him188.ani.app.domain.media.player.prefetch.MediaPrefetchController
 import me.him188.ani.app.domain.media.player.prefetch.MediaTimeRange
 import me.him188.ani.app.domain.media.player.prefetch.PrefetchSegmentInfo
@@ -53,7 +54,7 @@ class CacheProgressProvider(
     @OptIn(ExperimentalMediampApi::class)
     val cacheProgressInfoFlow = playerState.mediaData
         .flatMapLatest { data ->
-            when (data) {
+            when (val data = data?.unwrapTorrentPlayback()) {
                 is TorrentMediaData -> TorrentMediaCacheProgressProvider(data.pieces).flow
                 is UriMediaData -> {
                     val buffering = playerState.features[Buffering]
