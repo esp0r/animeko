@@ -33,7 +33,7 @@ internal fun interface HlsProxyServerFactory {
 /**
  * @param headers 请求头, 名称已转为小写
  */
-internal class HlsProxyRequest(val path: String, val headers: Map<String, String>)
+internal class HlsProxyRequest(val path: String, val headers: Map<String, String>, val method: String = "GET")
 
 /**
  * 原样写到连接上, 包括状态行和响应头.
@@ -73,7 +73,7 @@ internal inline fun parseHlsProxyRequest(requestLine: String?, readHeaderLine: (
         .substringBefore(" ", missingDelimiterValue = "")
         .substringBefore("?")
         .ifEmpty { "/playlist.m3u8" }
-    return HlsProxyRequest(path, headers)
+    return HlsProxyRequest(path, headers, requestLine.substringBefore(' '))
 }
 
 /**

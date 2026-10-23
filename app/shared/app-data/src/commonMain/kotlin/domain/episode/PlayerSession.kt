@@ -26,6 +26,7 @@ import me.him188.ani.app.domain.media.hls.HlsPlaybackProxySession
 import me.him188.ani.app.domain.media.player.prefetch.MediaPrefetchController
 import me.him188.ani.app.domain.media.fetch.MediaFetchSession
 import me.him188.ani.app.domain.media.player.data.TorrentMediaData
+import me.him188.ani.app.domain.media.player.data.TorrentPlaybackProxy
 import me.him188.ani.app.domain.media.resolver.EpisodeMetadata
 import me.him188.ani.app.domain.media.resolver.MediaResolutionException
 import me.him188.ani.app.domain.media.resolver.MediaResolver
@@ -44,6 +45,8 @@ import me.him188.ani.utils.logging.error
 import me.him188.ani.utils.logging.info
 import me.him188.ani.utils.logging.logger
 import me.him188.ani.utils.logging.warn
+import me.him188.ani.utils.platform.Platform
+import me.him188.ani.utils.platform.currentPlatform
 import org.koin.core.Koin
 import org.openani.mediamp.MediampPlayer
 import org.openani.mediamp.PlaybackException
@@ -76,6 +79,7 @@ class PlayerSession(
     private val getMediaSourceInstancesUseCase: GetMediaSourceInstancesUseCase by koin.inject()
 
     private val hlsPlaybackProxySessionFlow = MutableStateFlow<HlsPlaybackProxySession?>(null)
+    private var torrentPlaybackProxy: TorrentPlaybackProxy? = null
     private var hlsPlaybackProxySession: HlsPlaybackProxySession?
         get() = hlsPlaybackProxySessionFlow.value
         set(value) {
@@ -141,6 +145,7 @@ class PlayerSession(
         }
 
         var preparedHlsPlaybackProxySession: HlsPlaybackProxySession? = null
+        var preparedTorrentPlaybackProxy: TorrentPlaybackProxy? = null
         try {
             _videoLoadingStateFlow.value = VideoLoadingState.ResolvingSource
             listener.onResolveStart(mediaResolver.resolverFor(media)?.let { it::class.simpleName })
@@ -162,7 +167,9 @@ class PlayerSession(
             val openedEngineKey = (data as? TorrentMediaData)?.engineKey ?: resolvedEngineKey
             listener.onOpened(openedEngineKey, start.elapsedNow())
 
-            val preparedData = prepareHlsPlaybackIfEnabled(
+            val preparedData = if (data is TorrentMediaData && currentPlatform() == Platform.Ios) {
+                TorrentPlaybackProxy.create(data).also { preparedTorrentPlaybackProxy = it }.data
+            } else prepareHlsPlaybackIfEnabled(
                 data,
                 media,
                 startPositionHintMillis = startPositionMillis.takeIf { it > 0L },
@@ -174,6 +181,8 @@ class PlayerSession(
             logger.info { "Set media data to player at ${startPositionMillis}ms: $preparedData" }
             // v2: setMediaData 挂起直到媒体真正打开, 播放意图和起播位置随打开一并生效.
             player.setMediaData(preparedData, playWhenReady = true, startPositionMillis = startPositionMillis)
+            torrentPlaybackProxy = preparedTorrentPlaybackProxy
+            preparedTorrentPlaybackProxy = null
             hlsPlaybackProxySession = preparedHlsPlaybackProxySession
             preparedHlsPlaybackProxySession = null
 
@@ -228,6 +237,7 @@ class PlayerSession(
             fail(VideoLoadingState.UnknownError(e))
             stopPlayback()
         } finally {
+            preparedTorrentPlaybackProxy?.close()
             preparedHlsPlaybackProxySession?.close()
         }
     }
@@ -281,6 +291,8 @@ class PlayerSession(
     }
 
     private fun closeHlsPlaybackProxySession() {
+        torrentPlaybackProxy?.close()
+        torrentPlaybackProxy = null
         hlsPlaybackProxySession?.close()
         hlsPlaybackProxySession = null
     }

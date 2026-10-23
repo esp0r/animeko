@@ -68,8 +68,6 @@ import me.him188.ani.utils.ktor.ScopedHttpClient
 import me.him188.ani.utils.logging.error
 import me.him188.ani.utils.logging.logger
 import me.him188.ani.utils.logging.warn
-import me.him188.ani.utils.platform.Platform
-import me.him188.ani.utils.platform.currentPlatform
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import kotlin.io.encoding.Base64
@@ -312,7 +310,7 @@ class MediaSourceManagerImpl(
 
     override val mediaFetcher: Flow<MediaFetcher> = allInstances.map { instances ->
         MediaSourceMediaFetcher(
-            configProvider = { MediaFetcherConfig(currentPlatform() != Platform.Ios) },
+            configProvider = { MediaFetcherConfig(enableBTFetcher = true) },
             mediaSources = instances,
         )
     }

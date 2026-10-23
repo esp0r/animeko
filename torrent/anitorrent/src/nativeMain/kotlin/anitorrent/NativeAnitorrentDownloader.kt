@@ -36,7 +36,7 @@ private inline fun <T> TorrentDownloaderConfig.withSettings(block: (CPointer<ani
     val settings = alloc<ani_settings>()
     settings.user_agent = userAgent.cstr.ptr
     settings.peer_fingerprint = peerFingerprint.cstr.ptr
-    settings.handshake_client_version = handshakeClientVersion.cstr.ptr
+    settings.handshake_client_version = handshakeClientVersion.orEmpty().cstr.ptr
     settings.download_rate_limit = downloadRateLimitBytes
     settings.upload_rate_limit = uploadRateLimitBytes
     settings.share_ratio_limit = shareRatioLimit
