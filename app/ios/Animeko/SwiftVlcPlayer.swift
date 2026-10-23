@@ -14,6 +14,7 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     private var generation = 0
     private var opening = false
     private var terminalPhase: Int32?
+    private var nativePaused = false
     private var aspect: Int32 = 0
     private var aspectString: UnsafeMutablePointer<CChar>?
     private var cropString: UnsafeMutablePointer<CChar>?
@@ -48,12 +49,14 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         switch player.state {
         case .stopped: return 0
         case .opening: return 1
-        case .buffering: return 2
+        // VLCKit caches buffering notifications even after their percentage reaches 100.
+        // Read libvlc's transport instead of treating the last notification as a stall.
+        case .buffering: return nativePaused ? 4 : (player.isPlaying ? 3 : 2)
         case .playing: return 3
         case .paused: return 4
         case .ended: return 5
         case .error: return 6
-        default: return player.isPlaying ? 3 : 1
+        default: return nativePaused ? 4 : (player.isPlaying ? 3 : 1)
         }
     }
     var positionMillis: Int64 { max(0, Int64(player.time.intValue)) }
@@ -114,6 +117,7 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
 
     func play() {
         terminalPhase = nil
+        nativePaused = false
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
         player.play()
@@ -127,6 +131,8 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         if player.media != nil { player.stop() }
     }
     func mediaPlayerStateChanged(_ notification: Notification) {
+        if player.state == .paused { nativePaused = true }
+        if player.state == .playing || player.state == .stopped { nativePaused = false }
         if player.state == .ended { terminalPhase = 5 }
         if player.state == .error { terminalPhase = 6 }
         NSLog("Animeko VLC: phase=%d time=%lld size=%dx%d", phase, positionMillis, videoWidth, videoHeight)
