@@ -61,6 +61,9 @@ kotlin {
         // VLC: macOS x64.
         api(libs.mediamp.mpv)
     }
+    sourceSets.matching { it.name == "iosTest" }.all {
+        dependencies { implementation(libs.kotlinx.coroutines.test) }
+    }
     sourceSets.appleMain.dependencies {
         api(libs.mediamp.avkit)
 //        api(libs.mediamp.avkit.compose)

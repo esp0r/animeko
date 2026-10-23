@@ -106,7 +106,7 @@ jobs:
           trap 'kill "$monitor_pid" 2>/dev/null || true' EXIT
           ./gradlew :app:ios:podInstall :app:ios:buildDebugIpa -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --stacktrace --console=plain --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
       - name: Run native bridge and HTTP range tests
-        run: ./gradlew :torrent:anitorrent:iosSimulatorArm64Test --tests '*NativeBridgeTest*' :app:shared:app-data:iosSimulatorArm64Test --tests '*TorrentHttpRangeTest*' --tests '*TorrentPlaybackProxyTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
+        run: ./gradlew :app:shared:video-player:iosSimulatorArm64Test --tests '*IosVlcMediampPlayerTest*' :torrent:anitorrent:iosSimulatorArm64Test --tests '*NativeBridgeTest*' :app:shared:app-data:iosSimulatorArm64Test --tests '*TorrentHttpRangeTest*' --tests '*TorrentPlaybackProxyTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
       - uses: actions/upload-artifact@v4
         with:
           name: animeko-ios-bittorrent-unsigned

@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -122,12 +123,17 @@ class IosVlcMediampPlayer(
             commandPending = playWhenReady
             refreshTracks()
             polling = scope.launch {
+                var endedReported = false
                 while (isActive && session.isValid) {
                     delay(100)
                     when (impl.phase) {
-                        5 -> { session.notifyEnded(); break }
+                        5 -> if (!endedReported) {
+                            endedReported = true
+                            session.notifyEnded()
+                        }
                         6 -> { session.notifyError(playbackError()); break }
                         else -> {
+                            endedReported = false
                             session.reportTransport(snapshot())
                             session.notifyPosition(impl.positionMillis)
                             session.notifyProperties(properties())
@@ -143,6 +149,9 @@ class IosVlcMediampPlayer(
             )
         } catch (error: Throwable) {
             if (this.session === session) stopImpl()
+            if (error is TimeoutCancellationException) {
+                throw PlaybackException(PlaybackErrorCode.IO, "VLC timed out opening media", error)
+            }
             throw error
         }
     }
