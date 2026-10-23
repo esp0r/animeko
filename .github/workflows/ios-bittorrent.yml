@@ -1,0 +1,61 @@
+name: iOS BitTorrent IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/ios-bittorrent]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-bittorrent-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install JBR 21
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            arm64) arch=aarch64 ;;
+            x86_64) arch=x64 ;;
+            *) exit 1 ;;
+          esac
+          archive="jbrsdk_jcef-21.0.11-osx-${arch}-b1163.116.tar.gz"
+          base="https://cache-redirector.jetbrains.com/intellij-jbr"
+          curl --fail --location --retry 3 "$base/$archive" -o "$RUNNER_TEMP/$archive"
+          curl --fail --location --retry 3 "$base/$archive.checksum" -o "$RUNNER_TEMP/jbr.checksum"
+          expected=$(awk '{print $1}' "$RUNNER_TEMP/jbr.checksum")
+          actual=$(shasum -a 512 "$RUNNER_TEMP/$archive" | awk '{print $1}')
+          test "$expected" = "$actual"
+          mkdir -p "$RUNNER_TEMP/jbr"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/jbr" --strip-components=1
+          echo "JAVA_HOME=$RUNNER_TEMP/jbr/Contents/Home" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/jbr/Contents/Home/bin" >> "$GITHUB_PATH"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Configure iOS
+        run: |
+          printf '%s\n' 'ani.enable.ios=true' 'ani.build.framework=true' 'ani.android.abis=arm64-v8a' > local.properties
+          xcodebuild -version
+          pod --version
+      - name: Build unsigned IPA
+        run: ./gradlew :app:ios:podInstall :app:ios:buildDebugIpa --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx5g -Dfile.encoding=UTF-8" -Dkotlin.daemon.jvm.options=-Xmx5g --max-workers=2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: animeko-ios-bittorrent-unsigned
+          path: app/ios/build/archives/debug/Animeko.ipa
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ios-build-diagnostics
+          path: |
+            **/build/reports/
+            **/build/logs/
