@@ -92,7 +92,7 @@ int main() {
         config.set_bool(lt::settings_pack::enable_upnp, false);
         config.set_bool(lt::settings_pack::enable_natpmp, false);
         config.set_int(lt::settings_pack::alert_mask, lt::alert_category::error |
-            lt::alert_category::peer | lt::alert_category::status);
+            lt::alert_category::peer | lt::alert_category::status | lt::alert_category::connect);
         lt::session seed(config);
         lt::add_torrent_params parameters;
         parameters.ti = info;
@@ -117,7 +117,10 @@ int main() {
         result.resume_path = (root / "download" / "fastresume").string();
         require(ani_session_resume(client.get()) == 0, "Resume session");
         require(ani_handle_resume(handle.get()) == 0, "Start metadata discovery");
-        poll_until(client.get(), handle.get(), seed, result, "metadata", [&] { return result.metadata; });
+        poll_until(client.get(), handle.get(), seed, result, "metadata and file check", [&] {
+            const auto state = ani_handle_state(handle.get());
+            return result.metadata && state >= 3 && state <= 5;
+        });
         auto metadata = ani_handle_info(handle.get());
         require(metadata != nullptr, "Magnet metadata");
         require(ani_info_file_count(metadata) == 1, "File count");
