@@ -7,6 +7,9 @@
  * https://github.com/open-ani/ani/blob/main/LICENSE
  */
 
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.TestExecutable
+
 plugins {
     id("ani.kmp-compose")
     alias(libs.plugins.kotlin.plugin.serialization)
@@ -20,6 +23,19 @@ plugins {
 }
 
 kotlin {
+    targets.withType<KotlinNativeTarget>().configureEach {
+        val slice = if (name == "iosArm64") "ios-arm64" else "ios-arm64-simulator"
+        val runtimeProject = project(":utils:http-downloader")
+        val frameworkPath = runtimeProject.layout.buildDirectory.dir(
+            "mediamp-ffmpeg/apple-runtime/MediampFFmpegKit.xcframework/$slice",
+        ).get().asFile.absolutePath
+        binaries.withType<TestExecutable>().configureEach {
+            linkerOpts("-F$frameworkPath", "-framework", "MediampFFmpegKit", "-rpath", frameworkPath)
+            linkTaskProvider.configure {
+                dependsOn(":utils:http-downloader:extractMediampFfmpegAppleRuntime")
+            }
+        }
+    }
     android {
         namespace = "me.him188.ani.app.data"
     }
