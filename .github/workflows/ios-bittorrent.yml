@@ -81,6 +81,8 @@ jobs:
       - name: Configure iOS
         run: |
           printf '%s\n' 'ani.enable.ios=true' 'ani.build.framework=true' 'ani.android.abis=arm64-v8a' > local.properties
+          # CocoaPods invokes Gradle again from Xcode without the outer CLI flags.
+          printf '\n%s\n' 'android.compile.sdk=36' 'ani.anitorrent.prebuilt=true' 'kotlin.compiler.execution.strategy=in-process' 'org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8' 'org.gradle.workers.max=2' 'org.gradle.configuration-cache=false' >> gradle.properties
           xcodebuild -version
           pod --version
           sysctl hw.memsize hw.ncpu

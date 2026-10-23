@@ -20,11 +20,12 @@ kotlin {
     targets.withType<KotlinNativeTarget>().configureEach {
         val sdk = if (name == "iosArm64") "iphoneos" else "iphonesimulator"
         val output = layout.buildDirectory.dir("native/$sdk")
+        val usePrebuilt = providers.gradleProperty("ani.anitorrent.prebuilt").map(String::toBoolean).orElse(false)
         val nativeBuild = tasks.register<Exec>("buildAnitorrent${name.replaceFirstChar { it.uppercase() }}") {
             inputs.dir("native")
             outputs.file(output.map { it.file("lib/libanitorrent_c.a") })
             commandLine("bash", file("native/build-apple.sh"), sdk, output.get().asFile)
-            onlyIf { !providers.gradleProperty("ani.anitorrent.prebuilt").map(String::toBoolean).getOrElse(false) }
+            onlyIf { !usePrebuilt.get() }
         }
         compilations.getByName("main").cinterops.create("anitorrent") {
             definitionFile.set(file("src/nativeInterop/cinterop/anitorrent.def"))
