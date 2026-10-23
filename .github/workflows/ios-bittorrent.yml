@@ -21,7 +21,15 @@ jobs:
         sdk: [iphoneos, iphonesimulator]
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: native-cache
+        with:
+          path: |
+            torrent/anitorrent/build/native/${{ matrix.sdk }}/lib
+            torrent/anitorrent/build/native/${{ matrix.sdk }}/include
+          key: anitorrent-apple-v1-${{ matrix.sdk }}-${{ hashFiles('torrent/anitorrent/native/**') }}
       - name: Build native BitTorrent library
+        if: steps.native-cache.outputs.cache-hit != 'true'
         run: bash torrent/anitorrent/native/build-apple.sh ${{ matrix.sdk }} torrent/anitorrent/build/native/${{ matrix.sdk }}
       - uses: actions/upload-artifact@v4
         with:
@@ -75,6 +83,8 @@ jobs:
           pod --version
       - name: Build unsigned IPA
         run: ./gradlew :app:ios:podInstall :app:ios:buildDebugIpa -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx5g -Dfile.encoding=UTF-8" -Dkotlin.daemon.jvm.options=-Xmx5g --max-workers=2
+      - name: Run native bridge and HTTP range tests
+        run: ./gradlew :torrent:anitorrent:iosSimulatorArm64Test --tests '*NativeBridgeTest*' :app:shared:app-data:iosSimulatorArm64Test --tests '*TorrentHttpRangeTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx5g -Dfile.encoding=UTF-8" -Dkotlin.daemon.jvm.options=-Xmx5g --max-workers=2
       - uses: actions/upload-artifact@v4
         with:
           name: animeko-ios-bittorrent-unsigned

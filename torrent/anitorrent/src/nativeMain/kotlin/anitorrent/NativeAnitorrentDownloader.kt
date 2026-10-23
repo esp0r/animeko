@@ -10,6 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.files.Path
 import me.him188.ani.app.torrent.anitorrent.binding.*
 import me.him188.ani.app.torrent.anitorrent.session.*
@@ -24,6 +25,9 @@ import me.him188.ani.utils.io.SystemPath
 import me.him188.ani.utils.logging.error
 import kotlin.coroutines.CoroutineContext
 import kotlin.native.ref.createCleaner
+import platform.Foundation.NSNotificationCenter
+import platform.Foundation.NSOperationQueue
+import platform.UIKit.UIApplicationWillResignActiveNotification
 
 private fun nativeCheck(result: Int) {
     check(result >= 0) { ani_last_error()?.toKString() ?: "Native torrent operation failed" }
@@ -53,6 +57,12 @@ internal class NativeAnitorrentDownloader(
     override val native = NativeTorrentManagerSession(config, reference.asCPointer())
     private val closeLock = SynchronizedObject()
     private var closed = false
+    private val lifecycleObserver = NSNotificationCenter.defaultCenter.addObserverForName(
+        UIApplicationWillResignActiveNotification, null, NSOperationQueue.mainQueue,
+    ) {
+        runCatching { native.saveResumeData() }
+            .onFailure { error -> logger.error(error) { "Failed to checkpoint torrents before suspension" } }
+    }
 
     init {
         extraTrackers = config.extraTrackers
@@ -62,6 +72,12 @@ internal class NativeAnitorrentDownloader(
                     nativeCheck(ani_session_poll(session, eventCallback, reference.asCPointer()))
                 }
                 delay(100)
+            }
+        }
+        scope.launch(Dispatchers.IO_) {
+            while (isActive) {
+                delay(15_000)
+                native.saveResumeData()
             }
         }
     }
@@ -75,7 +91,7 @@ internal class NativeAnitorrentDownloader(
         if (kind == ANI_REMOVED && id == 0L) {
             val name = payload?.reinterpret<ByteVar>()?.toKString() ?: return
             runBlocking(Dispatchers.IO_) {
-                openSessions.value.values.firstOrNull { it.getName() == name }
+                withTimeoutOrNull(1_000) { openSessions.value.values.firstOrNull { it.getName() == name } }
             }?.onTorrentRemoved()
             return
         }
@@ -97,6 +113,7 @@ internal class NativeAnitorrentDownloader(
     override fun close() = synchronized(closeLock) {
         if (closed) return@synchronized
         closed = true
+        NSNotificationCenter.defaultCenter.removeObserver(lifecycleObserver)
         super.close()
         native.close()
         reference.dispose()
@@ -154,6 +171,9 @@ internal class NativeTorrentManagerSession(config: TorrentDownloaderConfig, cont
     override fun resume() = access { nativeCheck(ani_session_resume(it)) }
     override fun applyConfig(config: TorrentDownloaderConfig) = access { session ->
         config.withSettings { nativeCheck(ani_session_configure(session, it)) }
+    }
+    fun saveResumeData() = access {
+        handles.forEach { handle -> handle.pointer?.let { pointer -> nativeCheck(ani_handle_post_resume(pointer)) } }
     }
     fun close() = synchronized(this) {
         if (closed) return@synchronized
