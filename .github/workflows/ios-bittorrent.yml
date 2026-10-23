@@ -55,7 +55,9 @@ jobs:
             torrent/anitorrent/build/native/${{ matrix.sdk }}/include/
           if-no-files-found: error
   ipa:
-    needs: native
+    # Build the deliverable explicitly after native playback checks pass.
+    if: github.event_name == 'workflow_dispatch'
+    needs: [native, vlc]
     runs-on: macos-15
     timeout-minutes: 180
     steps:

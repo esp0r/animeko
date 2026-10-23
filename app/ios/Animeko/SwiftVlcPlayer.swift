@@ -15,6 +15,8 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     private var opening = false
     private var terminalPhase: Int32?
     private var nativePaused = false
+    private var pausedSeek: Int64?
+    private var seekResumeDeadline: TimeInterval?
     private var aspect: Int32 = 0
     private var aspectString: UnsafeMutablePointer<CChar>?
     private var cropString: UnsafeMutablePointer<CChar>?
@@ -59,7 +61,20 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         default: return nativePaused ? 4 : (player.isPlaying ? 3 : 1)
         }
     }
-    var positionMillis: Int64 { max(0, Int64(player.time.intValue)) }
+    var positionMillis: Int64 {
+        let actual = max(0, Int64(player.time.intValue))
+        guard let target = pausedSeek else { return actual }
+        // libvlc accepts paused seeks, but VLCKit's cached clock updates on resume.
+        if abs(actual - target) < 750 || (seekResumeDeadline.map { ProcessInfo.processInfo.systemUptime >= $0 } ?? false) {
+            pausedSeek = nil
+            seekResumeDeadline = nil
+            return actual
+        }
+        return target
+    }
+    #if VLC_TESTING
+    var nativePositionMillis: Int64 { max(0, Int64(player.time.intValue)) }
+    #endif
     var durationMillis: Int64 { max(0, Int64(player.media?.length.intValue ?? 0)) }
     var videoWidth: Int32 { Int32(player.videoSize.width) }
     var videoHeight: Int32 { Int32(player.videoSize.height) }
@@ -116,6 +131,7 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     }
 
     func play() {
+        if pausedSeek != nil { seekResumeDeadline = ProcessInfo.processInfo.systemUptime + 5 }
         terminalPhase = nil
         nativePaused = false
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
@@ -124,6 +140,8 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     }
     func pause() { player.pause() }
     func stop() {
+        pausedSeek = nil
+        seekResumeDeadline = nil
         generation += 1
         opening = false
         terminalPhase = nil
@@ -160,7 +178,15 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         }
     }
     func seek(positionMillis: Int64) {
-        player.time = VLCTime(int: Int32(clamping: positionMillis))
+        guard player.isSeekable else { return }
+        let target = max(0, durationMillis > 0 ? min(positionMillis, durationMillis) : positionMillis)
+        if nativePaused || player.state == .paused {
+            pausedSeek = target
+            seekResumeDeadline = nil
+        } else {
+            pausedSeek = nil
+        }
+        player.time = VLCTime(int: Int32(clamping: target))
     }
     func setRate(rate: Float) { player.rate = rate }
     func setVolume(volume: Float, muted: Bool) {

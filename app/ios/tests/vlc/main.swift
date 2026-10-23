@@ -50,7 +50,11 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
                 player.setRate(rate: 1.5)
                 player.play()
                 step = 4
-            case 4 where player.phase == 5:
+            case 4 where player.phase == 3 && player.nativePositionMillis >= 4000:
+                require(player.nativePositionMillis < 6500, "resume missed the seek target")
+                print("VLC_TEST: confirmed native seek at \(player.nativePositionMillis)")
+                step = 5
+            case 5 where player.phase == 5:
                 player.close()
                 print("VLC_TEST_PASSED: original MKV decoded; tracks, pause, seek, speed, end and cleanup")
                 fflush(stdout)
