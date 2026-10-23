@@ -145,6 +145,11 @@ int main() {
             result.resume_path.c_str(), (root / "download").string().c_str()));
         require(bool(handle), "Restore torrent");
         require(ani_handle_valid(handle.get()) == 1, "Restored handle");
+        auto restored_info = ani_handle_info(handle.get());
+        require(restored_info != nullptr, "Resume data must restore magnet metadata immediately");
+        require(ani_info_file_size(restored_info, 0) == static_cast<int64_t>(original.size()),
+                "Restored metadata file size");
+        ani_info_destroy(restored_info);
         require(read_file(root / "download" / "episode.mp4") == original, "Restart changed downloaded bytes");
         ani_session_remove(client.get(), handle.get());
         handle.reset();
