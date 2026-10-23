@@ -49,8 +49,16 @@ loopback-only HTTP server, with GET, HEAD and single byte-range responses. The
 same adapter serves completed local cache files. Progress, prefetch and sharing
 recover the original source through `unwrapTorrentPlayback`.
 
-This adapter does not change AVKit's container or codec support. A file can be
-downloaded successfully even when AVKit cannot play its format, such as MKV.
+Completed local MKV downloads are remuxed to a temporary MP4 before AVKit opens
+them. Video and audio packets are copied; text subtitles become MP4 timed text
+(without ASS styling). The original download is preserved. Temporary output is
+removed on failure, cancellation, switching media or closing playback. Video/audio
+codec support still follows AVKit; image subtitles and incomplete MKV streams are
+not converted by this local-file adapter.
+
+The IPA workflow builds the pinned mediamp FFmpeg runtime with the `movtext`
+encoder. Local builds must supply that archive via `ani.ios.ffmpegRuntime` in
+`gradle.properties` (also read by CocoaPods nested Gradle builds).
 
 Resume data is requested periodically and when the application resigns active.
 The shared cache database restores queued work after relaunch. iOS may suspend

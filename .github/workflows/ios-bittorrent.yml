@@ -13,6 +13,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  ffmpeg:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: open-ani/mediamp
+          ref: bf2e45d1c6756bf6a4fa676e8095e723bb7d3958
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Enable MP4 text subtitle encoding
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('buildSrc/src/main/kotlin/ffmpeg/FfmpegTargets.kt')
+          s = p.read_text()
+          assert 'add("--enable-encoder=srt")' in s
+          p.write_text(s.replace('add("--enable-encoder=srt")', 'add("--enable-encoder=srt")\n    add("--enable-encoder=movtext")'))
+          PY
+      - name: Build FFmpeg Apple runtime
+        run: ./gradlew :mediamp-ffmpeg:ffmpegAppleXcframeworkZip -Pandroid.compile.sdk=36 --no-configuration-cache --max-workers=3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-apple-movtext
+          path: mediamp-ffmpeg/build/distributions/*.zip
+          if-no-files-found: error
+
   native:
     runs-on: macos-15
     timeout-minutes: 90
@@ -39,7 +72,7 @@ jobs:
             torrent/anitorrent/build/native/${{ matrix.sdk }}/include/
           if-no-files-found: error
   ipa:
-    needs: native
+    needs: [native, ffmpeg]
     runs-on: macos-15
     timeout-minutes: 180
     steps:
@@ -87,6 +120,15 @@ jobs:
           pod --version
           sysctl hw.memsize hw.ncpu
           df -h /
+      - uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-apple-movtext
+          path: ffmpeg-runtime
+      - name: Configure playback runtime
+        run: |
+          runtime=$(find "$PWD/ffmpeg-runtime" -name '*.zip' -print -quit)
+          test -n "$runtime"
+          echo "ani.ios.ffmpegRuntime=$runtime" >> gradle.properties
       - name: Build unsigned IPA
         run: |
           (while sleep 60; do echo '--- Build resource usage ---'; ps -axo pid,rss,%cpu,comm | sort -nrk 2 | head -8; done) &
@@ -94,7 +136,7 @@ jobs:
           trap 'kill "$monitor_pid" 2>/dev/null || true' EXIT
           ./gradlew :app:ios:podInstall :app:ios:buildDebugIpa -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --stacktrace --console=plain --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
       - name: Run native bridge and HTTP range tests
-        run: ./gradlew :torrent:anitorrent:iosSimulatorArm64Test --tests '*NativeBridgeTest*' :app:shared:app-data:iosSimulatorArm64Test --tests '*TorrentHttpRangeTest*' --tests '*TorrentPlaybackProxyTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
+        run: ./gradlew :torrent:anitorrent:iosSimulatorArm64Test --tests '*NativeBridgeTest*' :app:shared:app-data:iosSimulatorArm64Test --tests '*TorrentHttpRangeTest*' --tests '*TorrentPlaybackProxyTest*' --tests '*LocalPlaybackPreparationTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
       - uses: actions/upload-artifact@v4
         with:
           name: animeko-ios-bittorrent-unsigned
