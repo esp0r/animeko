@@ -6,11 +6,14 @@ import application
 #endif
 
 /// VLC demuxes and decodes the original file, including embedded subtitles and fonts.
-final class SwiftVlcPlayer: NSObject, IosVlcPlayer {
+final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     private let player = VLCMediaPlayer()
     private let surface = VlcSurface()
     private var interrupted: NSObjectProtocol?
     private var routeChanged: NSObjectProtocol?
+    private var generation = 0
+    private var opening = false
+    private var terminalPhase: Int32?
     private var aspect: Int32 = 0
     private var aspectString: UnsafeMutablePointer<CChar>?
     private var cropString: UnsafeMutablePointer<CChar>?
@@ -19,6 +22,11 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer {
         super.init()
         surface.backgroundColor = .black
         player.drawable = surface
+        player.delegate = self
+        #if VLC_TESTING
+        player.libraryInstance.debugLogging = true
+        player.libraryInstance.debugLoggingLevel = 4
+        #endif
         surface.onLayout = { [weak self] in self?.updateAspect() }
         let center = NotificationCenter.default
         interrupted = center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
@@ -35,6 +43,8 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer {
 
     var view: UIView { surface }
     var phase: Int32 {
+        if opening { return 1 }
+        if let terminalPhase { return terminalPhase }
         switch player.state {
         case .stopped: return 0
         case .opening: return 1
@@ -80,21 +90,52 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer {
             default: break
             }
         }
-        player.media = media
-        NSLog("Animeko VLC: opening %@ media", url.isFileURL ? "local" : "network")
-        play()
+        opening = true
+        let load = generation
+        func attachWhenStopped() {
+            guard generation == load else { return }
+            if player.media != nil && player.state != .stopped {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    guard self != nil else { return }
+                    attachWhenStopped()
+                }
+                return
+            }
+            player.media = media
+            NSLog("Animeko VLC: opening %@ media", url.isFileURL ? "local" : "network")
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.generation == load else { return }
+                self.opening = false
+                self.play()
+            }
+        }
+        attachWhenStopped()
     }
 
     func play() {
+        terminalPhase = nil
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
         player.play()
     }
     func pause() { player.pause() }
-    func stop() { player.stop(); player.media = nil }
+    func stop() {
+        generation += 1
+        opening = false
+        terminalPhase = nil
+        // stop is asynchronous; keep the media until VLC has acknowledged it.
+        if player.media != nil { player.stop() }
+    }
+    func mediaPlayerStateChanged(_ notification: Notification) {
+        if player.state == .ended { terminalPhase = 5 }
+        if player.state == .error { terminalPhase = 6 }
+        NSLog("Animeko VLC: phase=%d time=%lld size=%dx%d", phase, positionMillis, videoWidth, videoHeight)
+    }
     func close() {
         stop()
         player.drawable = nil
+        player.delegate = nil
+        Self.releaseStoppedMedia(player)
         surface.onLayout = nil
         if let interrupted { NotificationCenter.default.removeObserver(interrupted) }
         if let routeChanged { NotificationCenter.default.removeObserver(routeChanged) }
@@ -104,6 +145,13 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer {
         player.videoCropGeometry = nil
         free(aspectString); aspectString = nil
         free(cropString); cropString = nil
+    }
+    private static func releaseStoppedMedia(_ player: VLCMediaPlayer) {
+        if player.state == .stopped {
+            player.media = nil
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { releaseStoppedMedia(player) }
+        }
     }
     func seek(positionMillis: Int64) {
         player.time = VLCTime(int: Int32(clamping: positionMillis))

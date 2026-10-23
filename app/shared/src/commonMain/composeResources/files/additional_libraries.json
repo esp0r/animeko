@@ -79,6 +79,16 @@
       "funding": []
     },
     {
+      "uniqueId": "org.videolan:MobileVLCKit",
+      "name": "MobileVLCKit",
+      "description": "VideoLAN media playback library for iOS",
+      "website": "https://www.videolan.org/vlc/libvlc.html",
+      "developers": [{ "name": "VideoLAN and VLCKit contributors" }],
+      "scm": { "url": "https://code.videolan.org/videolan/VLCKit" },
+      "licenses": ["LGPL-2.1-or-later"],
+      "funding": []
+    },
+    {
       "uniqueId": "org.ffmpeg:ffmpeg",
       "name": "FFmpeg",
       "description": "A complete, cross-platform solution to record, convert and stream audio and video",

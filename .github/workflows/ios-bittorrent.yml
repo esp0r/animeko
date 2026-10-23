@@ -55,7 +55,7 @@ jobs:
             torrent/anitorrent/build/native/${{ matrix.sdk }}/include/
           if-no-files-found: error
   ipa:
-    needs: [native, vlc]
+    needs: native
     runs-on: macos-15
     timeout-minutes: 180
     steps:

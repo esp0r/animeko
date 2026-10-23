@@ -8,7 +8,7 @@ test -n "$framework"
 app="$PWD/build/VlcHarness.app"
 mkdir -p "$app"
 sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
-xcrun swiftc -sdk "$sdk" -target "${arch}-apple-ios16.0-simulator" \
+xcrun swiftc -D VLC_TESTING -sdk "$sdk" -target "${arch}-apple-ios16.0-simulator" \
   -F "$(dirname "$framework")" -framework MobileVLCKit \
   -framework UIKit -framework AVFoundation -framework AudioToolbox \
   -framework VideoToolbox -framework CoreMedia -framework CFNetwork \
