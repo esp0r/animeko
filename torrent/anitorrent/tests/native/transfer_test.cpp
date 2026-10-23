@@ -39,10 +39,11 @@ static void on_event(void *context, int kind, uint32_t, int, const void *payload
     }
 }
 template<typename Predicate>
-static void poll_until(ani_session *session, events &result, Predicate done) {
+static void poll_until(ani_session *session, events &result, const char *phase, Predicate done) {
+    std::cout << "Waiting for " << phase << std::endl;
     auto deadline = std::chrono::steady_clock::now() + 60s;
     while (!done()) {
-        require(std::chrono::steady_clock::now() < deadline, "Timed out waiting for torrent event");
+        require(std::chrono::steady_clock::now() < deadline, std::string("Timed out waiting for ") + phase);
         require(ani_session_poll(session, on_event, &result) == 0, "Poll");
         std::this_thread::sleep_for(20ms);
     }
@@ -101,7 +102,8 @@ int main() {
         events result;
         result.resume_path = (root / "download" / "fastresume").string();
         require(ani_session_resume(client.get()) == 0, "Resume session");
-        poll_until(client.get(), result, [&] { return result.metadata; });
+        require(ani_handle_resume(handle.get()) == 0, "Start metadata discovery");
+        poll_until(client.get(), result, "metadata", [&] { return result.metadata; });
         auto metadata = ani_handle_info(handle.get());
         require(metadata != nullptr, "Magnet metadata");
         require(ani_info_file_count(metadata) == 1, "File count");
@@ -110,11 +112,11 @@ int main() {
         require(!result.complete, "Unselected files must not download");
         require(ani_handle_priority(handle.get(), 0, 7) == 0, "Select file");
         require(ani_handle_resume(handle.get()) == 0, "Resume handle");
-        poll_until(client.get(), result, [&] { return result.complete; });
+        poll_until(client.get(), result, "file completion", [&] { return result.complete; });
         require(read_file(root / "download" / "episode.mp4") == original, "Transferred bytes differ");
         result.resumed = false;
         require(ani_handle_post_resume(handle.get()) == 0, "Request resume data");
-        poll_until(client.get(), result, [&] { return result.resumed; });
+        poll_until(client.get(), result, "resume data", [&] { return result.resumed; });
         require(fs::file_size(result.resume_path) > 0, "Resume file is empty");
         require(ani_session_remove(client.get(), handle.get()) == 0, "Remove torrent");
         handle.reset();

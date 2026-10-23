@@ -2,6 +2,7 @@
 
 package me.him188.ani.app.torrent.anitorrent
 
+import cnames.structs.ani_session
 import kotlinx.cinterop.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking

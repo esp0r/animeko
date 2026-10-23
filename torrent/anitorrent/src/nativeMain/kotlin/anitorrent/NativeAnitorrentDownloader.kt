@@ -2,6 +2,9 @@
 
 package me.him188.ani.app.torrent.anitorrent
 
+import cnames.structs.ani_handle
+import cnames.structs.ani_resume
+import cnames.structs.ani_session
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.cinterop.*
@@ -139,6 +142,7 @@ internal class NativeAnitorrentDownloader(
             } catch (error: Throwable) {
                 logger.error(error) { "Native torrent event failed" }
             }
+            Unit
         }
         val peerCallback = staticCFunction { ctx: COpaquePointer?, peer: CPointer<ani_peer>? ->
             try {
@@ -179,6 +183,7 @@ internal class NativeTorrentManagerSession(config: TorrentDownloaderConfig, cont
         handle.pointer = nativePointer(ani_session_add(it, addInfo.magnet, addInfo.torrent, addInfo.resume, saveDir.toString()))
         handle.handleId = ani_handle_id(handle.pointer).toLong()
         handles.add(handle)
+        nativeCheck(ani_handle_resume(handle.pointer))
         true
     }
     override fun releaseHandle(handle: NativeTorrentHandle) = access {
