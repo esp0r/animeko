@@ -33,6 +33,7 @@ data class AnitorrentConfig(
      * 在计费网络限制上传速度为 10 KB/s
      * * Android 移动流量
      * * Windows 计费 Wi-Fi
+     * * iOS 蜂窝网络、个人热点与低数据模式
      */
     val limitUploadOnMeteredNetwork: Boolean = true,
     /**
@@ -50,5 +51,5 @@ data class AnitorrentConfig(
 }
 
 fun Platform.supportsLimitUploadOnMeteredNetwork(): Boolean {
-    return this is Platform.Android || this is Platform.Windows
+    return this is Platform.Android || this is Platform.Windows || this == Platform.Ios
 }
