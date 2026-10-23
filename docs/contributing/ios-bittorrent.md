@@ -11,6 +11,12 @@ and `iphonesimulator`. Dependencies are pinned in the script and CMake project.
 The resulting archive includes libtorrent and OpenSSL; the cinterop klib embeds
 it so application consumers do not need additional archive search paths.
 
+The CMake project applies a checked connection-policy adaptation to the pinned
+Anitorrent source: it retains peers while the file selection is empty and uses
+a shorter reconnect delay if a remote seed closes an idle connection. Without
+this, the only peer in a magnet swarm can be dropped between metadata discovery
+and selecting an episode.
+
 Normal Gradle builds invoke this script automatically. CI builds both archives
 in separate jobs, then passes `-Pani.anitorrent.prebuilt=true` when consuming them.
 Do not use this property without the archives under
