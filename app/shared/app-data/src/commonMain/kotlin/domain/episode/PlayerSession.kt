@@ -52,6 +52,7 @@ import org.openani.mediamp.MediampPlayer
 import org.openani.mediamp.PlaybackException
 import org.openani.mediamp.errorOrNull
 import org.openani.mediamp.source.MediaData
+import org.openani.mediamp.source.SeekableInputMediaData
 import org.openani.mediamp.source.UriMediaData
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.TimeSource
@@ -167,7 +168,7 @@ class PlayerSession(
             val openedEngineKey = (data as? TorrentMediaData)?.engineKey ?: resolvedEngineKey
             listener.onOpened(openedEngineKey, start.elapsedNow())
 
-            val preparedData = if (data is TorrentMediaData && currentPlatform() == Platform.Ios) {
+            val preparedData = if (data is SeekableInputMediaData && currentPlatform() == Platform.Ios) {
                 TorrentPlaybackProxy.create(data).also { preparedTorrentPlaybackProxy = it }.data
             } else prepareHlsPlaybackIfEnabled(
                 data,

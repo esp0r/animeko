@@ -11,22 +11,25 @@ import kotlinx.coroutines.withContext
 import me.him188.ani.app.domain.media.hls.HlsProxyRequest
 import me.him188.ani.app.domain.media.hls.HlsProxyResponseSink
 import me.him188.ani.app.domain.media.hls.HlsProxyServer
+import me.him188.ani.app.domain.media.hls.HlsProxyServerFactory
 import me.him188.ani.app.domain.media.hls.PlatformHlsProxyServerFactory
 import me.him188.ani.utils.coroutines.IO_
 import org.openani.mediamp.source.UriMediaData
 import org.openani.mediamp.source.MediaData
+import org.openani.mediamp.source.SeekableInputMediaData
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 /** Serves verified torrent pieces to AVKit through a loopback-only HTTP endpoint.
  * Every request owns its input cursor; a seek cannot move another request's cursor. */
 internal class TorrentPlaybackProxy private constructor(
-    private val source: TorrentMediaData,
+    private val source: SeekableInputMediaData,
     private val server: HlsProxyServer,
     private val path: String,
 ) : AutoCloseable {
     private val closed = atomic(false)
-    private val readers = Semaphore(4)
+    // These two implementations open independent file cursors; other providers may only allow one.
+    private val readers = Semaphore(if (source is TorrentMediaData || source is AniSystemFileMediaData) 4 else 1)
     val data = UriMediaData("http://127.0.0.1:${server.port}$path", emptyMap(), source.extraFiles, source.options)
 
     private suspend fun handle(request: HlsProxyRequest, sink: HlsProxyResponseSink) {
@@ -38,7 +41,7 @@ internal class TorrentPlaybackProxy private constructor(
             sink.write("HTTP/1.1 405 Method Not Allowed\r\nAllow: GET, HEAD\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".encodeToByteArray())
             return
         }
-        val size = source.fileLength()
+        val size = checkNotNull(source.fileLength()) { "Playback requires a known file size" }
         val rangeHeader = request.headers["range"]
         val range = parseTorrentHttpRange(rangeHeader, size)
         if (range == null) {
@@ -46,7 +49,7 @@ internal class TorrentPlaybackProxy private constructor(
             return
         }
         val length = if (range.isEmpty()) 0L else range.last - range.first + 1
-        val mime = when (source.filename.substringAfterLast('.').lowercase()) {
+        val mime = when ((source as? FileMediaData)?.filename?.substringAfterLast('.')?.lowercase()) {
             "mp4", "m4v" -> "video/mp4"
             "mov" -> "video/quicktime"
             "mkv" -> "video/x-matroska"
@@ -88,13 +91,19 @@ internal class TorrentPlaybackProxy private constructor(
 
     companion object {
         private val sourcesLock = SynchronizedObject()
-        private val sources = mutableMapOf<MediaData, TorrentMediaData>()
+        private val sources = mutableMapOf<MediaData, SeekableInputMediaData>()
 
-        fun sourceFor(data: MediaData): TorrentMediaData? = synchronized(sourcesLock) { sources[data] }
+        fun sourceFor(data: MediaData): MediaData? = synchronized(sourcesLock) { sources[data] }
 
         @OptIn(ExperimentalUuidApi::class)
-        suspend fun create(source: TorrentMediaData): TorrentPlaybackProxy {
-            val server = PlatformHlsProxyServerFactory.create()
+        suspend fun create(
+            source: SeekableInputMediaData,
+            factory: HlsProxyServerFactory = PlatformHlsProxyServerFactory,
+        ): TorrentPlaybackProxy {
+            val server = try { factory.create() } catch (error: Throwable) {
+                source.close()
+                throw error
+            }
             try {
                 return TorrentPlaybackProxy(source, server, "/${Uuid.random()}/video").also { proxy ->
                     server.start(proxy::handle)
@@ -102,6 +111,7 @@ internal class TorrentPlaybackProxy private constructor(
                 }
             } catch (error: Throwable) {
                 server.close()
+                source.close()
                 throw error
             }
         }

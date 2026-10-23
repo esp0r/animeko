@@ -86,7 +86,7 @@ jobs:
       - name: Build unsigned IPA
         run: ./gradlew :app:ios:podInstall :app:ios:buildDebugIpa -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx5g -Dfile.encoding=UTF-8" -Dkotlin.daemon.jvm.options=-Xmx5g --max-workers=2
       - name: Run native bridge and HTTP range tests
-        run: ./gradlew :torrent:anitorrent:iosSimulatorArm64Test --tests '*NativeBridgeTest*' :app:shared:app-data:iosSimulatorArm64Test --tests '*TorrentHttpRangeTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx5g -Dfile.encoding=UTF-8" -Dkotlin.daemon.jvm.options=-Xmx5g --max-workers=2
+        run: ./gradlew :torrent:anitorrent:iosSimulatorArm64Test --tests '*NativeBridgeTest*' :app:shared:app-data:iosSimulatorArm64Test --tests '*TorrentHttpRangeTest*' --tests '*TorrentPlaybackProxyTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx5g -Dfile.encoding=UTF-8" -Dkotlin.daemon.jvm.options=-Xmx5g --max-workers=2
       - uses: actions/upload-artifact@v4
         with:
           name: animeko-ios-bittorrent-unsigned
