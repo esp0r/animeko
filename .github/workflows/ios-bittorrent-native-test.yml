@@ -1,0 +1,25 @@
+name: BitTorrent native transfer test
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/ios-bittorrent, test/ios-native-transfer]
+    paths:
+      - 'torrent/anitorrent/native/**'
+      - 'torrent/anitorrent/tests/native/**'
+      - '.github/workflows/ios-bittorrent-native-test.yml'
+permissions:
+  contents: read
+jobs:
+  transfer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libssl-dev
+      - name: Build bridge and controlled swarm test
+        run: |
+          cmake -S torrent/anitorrent/tests/native -B build/native-transfer -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/native-transfer --parallel 3
+      - name: Transfer and verify fixture
+        run: ctest --test-dir build/native-transfer --output-on-failure
