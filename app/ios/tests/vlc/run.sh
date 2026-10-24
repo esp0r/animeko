@@ -46,12 +46,13 @@ xcrun simctl launch --console "$device" org.animeko.vlctest > build/native-vlc.l
 launch_pid=$!
 trap 'kill "$launch_pid" 2>/dev/null || true' EXIT
 ready=false
-for attempt in $(seq 1 150); do
+# A fresh CI simulator may still be starting system services after bootstatus.
+for attempt in $(seq 1 900); do
   if grep -q VLC_SUBTITLE_READY build/native-vlc.log; then ready=true; break; fi
   if ! kill -0 "$launch_pid" 2>/dev/null; then break; fi
   sleep 0.2
 done
-if [ "$ready" != true ]; then cat build/native-vlc.log; exit 1; fi
+if [ "$ready" != true ]; then echo 'VLC_TEST_FAILED: simulator did not reach subtitle frame'; cat build/native-vlc.log; exit 1; fi
 xcrun simctl io "$device" screenshot build/chinese-subtitles.png
 touch "$data/Documents/subtitle-captured"
 wait "$launch_pid" || { cat build/native-vlc.log; exit 1; }
