@@ -57,6 +57,11 @@ session state machine, audio/subtitle selectors, seeking, volume and speed.
 The VLC surface supports fit/stretch/crop. The AVPlayer-only Anime4K renderer
 and picture-in-picture layer are unavailable on this surface.
 
+Plain-text captions use the bundled Noto Sans CJK SC Regular 2.004 font,
+registered with CoreText before the VLC library is created. FreeType selects
+this family and libass can read the same font directory. The unmodified font
+and its SIL Open Font License are packaged in `SubtitleFonts`.
+
 The sideloaded iOS build disables upstream app update checks, downloads,
 installation entry points, notifications and version-expiry prompts through
 `appUpdatesEnabled`, independently of previously saved settings. Other platforms
@@ -68,6 +73,9 @@ instructions: https://code.videolan.org/videolan/VLCKit/tree/3.0.
 Run `bash app/ios/tests/vlc/run.sh` on macOS for the native MKV regression test.
 It compiles the production Swift player, plays a synthetic H.264/AAC/SRT MKV,
 and checks dimensions, duration, tracks, pause, seek, speed and end of media.
+It also verifies the bundled font's CJK glyphs and uses Vision OCR on a simulator
+screenshot to check actual Simplified and Traditional Chinese subtitle rendering.
+The screenshot is uploaded as a CI artifact and is not committed to the repository.
 
 Resume data is requested periodically and when the application resigns active.
 The shared cache database restores queued work after relaunch. iOS may suspend

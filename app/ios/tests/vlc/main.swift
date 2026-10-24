@@ -1,4 +1,5 @@
 import UIKit
+import CoreText
 
 final class TestDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
@@ -17,6 +18,12 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.rootViewController = controller
         window?.makeKeyAndVisible()
+        let font = CTFontCreateWithName("Noto Sans CJK SC" as CFString, 24, nil)
+        let sample = Array("简体中文测试繁體字幕日本語한국어".utf16)
+        var glyphs = Array(repeating: CGGlyph(0), count: sample.count)
+        require(CTFontGetGlyphsForCharacters(font, sample, &glyphs, sample.count), "bundled font missing CJK glyphs")
+        let fontURL = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL
+        require(fontURL?.lastPathComponent == "NotoSansCJKsc-Regular.otf", "CoreText did not select bundled font")
         let url = Bundle.main.url(forResource: "fixture", withExtension: "mkv")!
         player.open(uri: url.absoluteString, headers: [:], startPositionMillis: 0)
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [self] _ in
@@ -25,12 +32,12 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
             require(tick < 450, "timed out at step \(step), phase \(player.phase)")
             require(player.phase != 6, "decoder error")
             switch step {
-            case 0 where player.phase == 3 && player.positionMillis > 300:
-                require(player.videoWidth == 64 && player.videoHeight == 64, "video dimensions")
+            case 0 where player.phase == 3 && player.positionMillis > 1200:
+                require(player.videoWidth == 640 && player.videoHeight == 360, "video dimensions")
                 require(player.durationMillis >= 7500, "duration")
                 require(!player.audioTracks.isEmpty, "AAC track missing")
                 require(!player.subtitleTracks.isEmpty, "embedded SRT missing")
-                player.selectSubtitle(id: player.subtitleTracks[0].id)
+                require(player.selectedSubtitle == player.subtitleTracks[0].id, "default Chinese subtitle not selected")
                 player.selectAudio(id: player.audioTracks[0].id)
                 player.setAspect(mode: 2)
                 player.setVolume(volume: 0.5, muted: false)
@@ -39,8 +46,9 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
             case 1 where player.phase == 4:
                 pausedAt = player.positionMillis
                 pausedTick = tick
+                print("VLC_SUBTITLE_READY"); fflush(stdout)
                 step = 2
-            case 2 where tick - pausedTick >= 6:
+            case 2 where tick - pausedTick >= 100:
                 require(abs(player.positionMillis - pausedAt) < 200, "pause did not hold position")
                 require(player.seekable, "local MKV is not seekable")
                 player.seek(positionMillis: 4000)

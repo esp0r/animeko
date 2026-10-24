@@ -1,6 +1,16 @@
 {
   "libraries": [
     {
+      "uniqueId": "com.github.notofonts:noto-cjk",
+      "name": "Noto Sans CJK",
+      "description": "Bundled CJK subtitle font for the iOS VLC player",
+      "website": "https://github.com/notofonts/noto-cjk",
+      "developers": [{ "name": "Noto Project Authors" }],
+      "scm": { "url": "https://github.com/notofonts/noto-cjk" },
+      "licenses": ["OFL-1.1"],
+      "funding": []
+    },
+    {
       "uniqueId": "com.github.jellyfin:jellyfin",
       "name": "Jellyfin",
       "description": "The Free Software Media System - Server Backend & API",
@@ -120,6 +130,11 @@
     }
   ],
   "licenses": {
+    "OFL-1.1": {
+      "name": "SIL Open Font License 1.1",
+      "url": "https://openfontlicense.org/open-font-license-official-text/",
+      "spdxId": "OFL-1.1"
+    },
     "Apache-2.0": {
       "name": "Apache License 2.0",
       "url": "https://spdx.org/licenses/Apache-2.0.html",

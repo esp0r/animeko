@@ -17,6 +17,7 @@ xcrun swiftc -D VLC_TESTING -sdk "$sdk" -target "${arch}-apple-ios16.0-simulator
   -Xlinker -rpath -Xlinker @executable_path/Frameworks \
   BridgeStub.swift ../../Animeko/SwiftVlcPlayer.swift main.swift -o "$app/VlcHarness"
 cp fixture.mkv "$app/"
+cp -R ../../Animeko/SubtitleFonts "$app/"
 mkdir -p "$app/Frameworks"
 cp -R "$framework" "$app/Frameworks/"
 codesign --force --sign - "$app/Frameworks/MobileVLCKit.framework"
@@ -39,5 +40,18 @@ device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d
 xcrun simctl boot "$device" || true
 xcrun simctl bootstatus "$device" -b
 xcrun simctl install "$device" "$app"
-xcrun simctl launch --console "$device" org.animeko.vlctest | tee build/native-vlc.log
+xcrun simctl launch --console "$device" org.animeko.vlctest > build/native-vlc.log 2>&1 &
+launch_pid=$!
+trap 'kill "$launch_pid" 2>/dev/null || true' EXIT
+ready=false
+for attempt in $(seq 1 150); do
+  if grep -q VLC_SUBTITLE_READY build/native-vlc.log; then ready=true; break; fi
+  if ! kill -0 "$launch_pid" 2>/dev/null; then break; fi
+  sleep 0.2
+done
+if [ "$ready" != true ]; then cat build/native-vlc.log; exit 1; fi
+xcrun simctl io "$device" screenshot build/chinese-subtitles.png
+wait "$launch_pid" || { cat build/native-vlc.log; exit 1; }
+cat build/native-vlc.log
+xcrun swift verify_subtitles.swift build/chinese-subtitles.png
 grep -q VLC_TEST_PASSED build/native-vlc.log

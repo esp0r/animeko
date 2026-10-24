@@ -1,5 +1,6 @@
 import UIKit
 import AVFAudio
+import CoreText
 import MobileVLCKit
 #if canImport(application)
 import application
@@ -7,7 +8,7 @@ import application
 
 /// VLC demuxes and decodes the original file, including embedded subtitles and fonts.
 final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
-    private let player = VLCMediaPlayer()
+    private let player = SwiftVlcPlayer.makePlayer()
     private let surface = VlcSurface()
     private var interrupted: NSObjectProtocol?
     private var routeChanged: NSObjectProtocol?
@@ -20,6 +21,29 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     private var aspect: Int32 = 0
     private var aspectString: UnsafeMutablePointer<CChar>?
     private var cropString: UnsafeMutablePointer<CChar>?
+
+    // FreeType needs a readable font file as well as a CoreText family match.
+    // Bundling the font keeps CJK captions independent of system font storage.
+    private static let subtitleFont: URL? = {
+        guard let url = Bundle.main.url(forResource: "NotoSansCJKsc-Regular", withExtension: "otf", subdirectory: "SubtitleFonts") else {
+            NSLog("Animeko VLC: bundled subtitle font is missing")
+            return nil
+        }
+        var error: Unmanaged<CFError>?
+        if !CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error) {
+            NSLog("Animeko VLC: subtitle font registration: %@", String(describing: error?.takeRetainedValue()))
+        }
+        return url
+    }()
+
+    private static func makePlayer() -> VLCMediaPlayer {
+        guard let font = subtitleFont else { return VLCMediaPlayer() }
+        return VLCMediaPlayer(options: [
+            "--freetype-font=Noto Sans CJK SC",
+            "--freetype-monofont=Noto Sans CJK SC",
+            "--ssa-fontsdir=\(font.deletingLastPathComponent().path)",
+        ])
+    }
 
     override init() {
         super.init()

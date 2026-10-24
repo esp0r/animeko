@@ -28,7 +28,9 @@ jobs:
         if: always()
         with:
           name: native-vlc-test
-          path: app/ios/tests/vlc/build/native-vlc.log
+          path: |
+            app/ios/tests/vlc/build/native-vlc.log
+            app/ios/tests/vlc/build/chinese-subtitles.png
   native:
     runs-on: macos-15
     timeout-minutes: 90
