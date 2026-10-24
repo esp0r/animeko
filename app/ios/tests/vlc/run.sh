@@ -40,6 +40,8 @@ device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d
 xcrun simctl boot "$device" || true
 xcrun simctl bootstatus "$device" -b
 xcrun simctl install "$device" "$app"
+data=$(xcrun simctl get_app_container "$device" org.animeko.vlctest data)
+rm -f "$data/Documents/subtitle-captured"
 xcrun simctl launch --console "$device" org.animeko.vlctest > build/native-vlc.log 2>&1 &
 launch_pid=$!
 trap 'kill "$launch_pid" 2>/dev/null || true' EXIT
@@ -51,6 +53,7 @@ for attempt in $(seq 1 150); do
 done
 if [ "$ready" != true ]; then cat build/native-vlc.log; exit 1; fi
 xcrun simctl io "$device" screenshot build/chinese-subtitles.png
+touch "$data/Documents/subtitle-captured"
 wait "$launch_pid" || { cat build/native-vlc.log; exit 1; }
 cat build/native-vlc.log
 xcrun swift verify_subtitles.swift build/chinese-subtitles.png

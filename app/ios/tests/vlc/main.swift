@@ -29,7 +29,7 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [self] _ in
             tick += 1
             if tick % 10 == 0 { print("VLC_TEST: step=\(step) phase=\(player.phase) position=\(player.positionMillis)"); fflush(stdout) }
-            require(tick < 450, "timed out at step \(step), phase \(player.phase)")
+            require(tick < 1800, "timed out at step \(step), phase \(player.phase)")
             require(player.phase != 6, "decoder error")
             switch step {
             case 0 where player.phase == 3 && player.positionMillis > 1200:
@@ -48,7 +48,7 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
                 pausedTick = tick
                 print("VLC_SUBTITLE_READY"); fflush(stdout)
                 step = 2
-            case 2 where tick - pausedTick >= 100:
+            case 2 where tick - pausedTick >= 6 && FileManager.default.fileExists(atPath: NSHomeDirectory() + "/Documents/subtitle-captured"):
                 require(abs(player.positionMillis - pausedAt) < 200, "pause did not hold position")
                 require(player.seekable, "local MKV is not seekable")
                 player.seek(positionMillis: 4000)
