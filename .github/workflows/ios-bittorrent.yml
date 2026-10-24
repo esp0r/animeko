@@ -30,7 +30,7 @@ jobs:
           name: native-vlc-test
           path: |
             app/ios/tests/vlc/build/native-vlc.log
-            app/ios/tests/vlc/build/chinese-subtitles.png
+            app/ios/tests/vlc/build/chinese-subtitles*.png
   native:
     runs-on: macos-15
     timeout-minutes: 90
@@ -119,6 +119,8 @@ jobs:
           ./gradlew :app:ios:podInstall :app:ios:buildDebugIpa -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --stacktrace --console=plain --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
       - name: Run native bridge and HTTP range tests
         run: ./gradlew :app:shared:video-player:iosSimulatorArm64Test --tests '*IosVlcMediampPlayerTest*' :torrent:anitorrent:iosSimulatorArm64Test --tests '*NativeBridgeTest*' :app:shared:app-data:iosSimulatorArm64Test --tests '*TorrentHttpRangeTest*' --tests '*TorrentPlaybackProxyTest*' --tests '*IosUpdatePolicyTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --stacktrace --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
+      - name: Test playback controls
+        run: ./gradlew :app:shared:video-player:desktopTest --tests '*SubtitleSizeControlTest*' :app:shared:desktopTest --tests '*DanmakuSourceSettingsTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
       - uses: actions/upload-artifact@v4
         with:
           name: animeko-ios-bittorrent-unsigned

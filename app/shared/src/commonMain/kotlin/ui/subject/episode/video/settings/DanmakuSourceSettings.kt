@@ -12,10 +12,8 @@ package me.him188.ani.app.ui.subject.episode.video.settings
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -35,6 +33,7 @@ import me.him188.ani.app.ui.episode.danmaku.danmakuTextConversionText
 import me.him188.ani.app.ui.episode.danmaku.formatDanmakuShiftMillis
 import me.him188.ani.app.ui.episode.danmaku.renderDanmakuMatchMethod
 import me.him188.ani.app.ui.episode.danmaku.renderDanmakuServiceId
+import me.him188.ani.app.ui.lang.video_danmaku_delay
 import me.him188.ani.app.ui.lang.Lang
 import me.him188.ani.app.ui.lang.subject_episode_danmaku_disabled
 import me.him188.ani.app.ui.lang.subject_episode_danmaku_sources_empty
@@ -88,7 +87,12 @@ fun DanmakuSourceSettings(
                                     Text("${source.count} · $status$match$conversion")
                                 },
                                 icon = { DanmakuServiceIcon(source.serviceId, size = 24) },
-                                action = { Icon(Icons.Outlined.MoreVert, contentDescription = null) },
+                                action = {
+                                    TextButton(
+                                        onClick = { editingServiceId = source.serviceId.value },
+                                        modifier = Modifier.testTag("danmaku-delay-${source.serviceId.value}"),
+                                    ) { Text(stringResource(Lang.video_danmaku_delay)) }
+                                },
                                 onClick = { showMenu = true },
                             )
                             DanmakuSourceSettingsDropdown(

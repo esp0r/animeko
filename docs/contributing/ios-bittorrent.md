@@ -103,3 +103,18 @@ The iOS bridge tests cover C interop ownership, metadata, priorities and resume
 files. The playback tests cover partial reads, byte-range headers, HEAD/error
 responses, source identity and cleanup. These checks do not replace a device
 test of AVKit playback, seeking, application suspension and relaunch.
+
+## Playback controls
+
+The expanded iOS player exposes **CC size** next to subtitle selection. The
+`SubtitleSize` feature applies 50-200% text scaling through MobileVLCKit and
+stores the selected scale in the application preferences. FreeType uses a
+video-height divisor; the slider represents a requested scale rounded to the
+nearest supported divisor. Styled ASS and bitmap tracks can retain their own
+layout. The native harness compares OCR glyph bounds at 100% and 150% while
+playing the same MKV and verifies restoration in a new player instance.
+
+Each source in the danmaku settings has a direct **Delay** action. It uses the
+existing source-specific timing dialog: positive offsets delay comments,
+negative offsets advance them, within +/-30 seconds. These offsets belong to
+the current playback session, independently of the persistent subtitle size.

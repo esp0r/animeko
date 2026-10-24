@@ -18,6 +18,12 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     private var nativePaused = false
     private var pausedSeek: Int64?
     private var seekResumeDeadline: TimeInterval?
+    private static let subtitleScaleKey = "animeko.vlc.subtitleScale"
+    private(set) var subtitleScale: Float = {
+        let saved = UserDefaults.standard.object(forKey: SwiftVlcPlayer.subtitleScaleKey) as? NSNumber
+        let value = saved?.floatValue ?? 1
+        return value.isFinite ? min(2, max(0.5, value)) : 1
+    }()
     private var aspect: Int32 = 0
     private var aspectString: UnsafeMutablePointer<CChar>?
     private var cropString: UnsafeMutablePointer<CChar>?
@@ -50,6 +56,7 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         surface.backgroundColor = .black
         player.drawable = surface
         player.delegate = self
+        applySubtitleScale()
         #if VLC_TESTING
         player.libraryInstance.debugLogging = true
         player.libraryInstance.debugLoggingLevel = 4
@@ -218,6 +225,23 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         player.audio?.isMuted = muted
     }
     func selectAudio(id: Int32) { player.currentAudioTrackIndex = id }
+    func setSubtitleScale(scale: Float) {
+        subtitleScale = scale.isFinite ? min(2, max(0.5, scale)) : 1
+        UserDefaults.standard.set(subtitleScale, forKey: Self.subtitleScaleKey)
+        applySubtitleScale()
+    }
+
+    private func applySubtitleScale() {
+        // MobileVLCKit 3 exposes this Objective-C setter without a public header declaration.
+        // FreeType uses a divisor of video height: a smaller divisor produces larger text.
+        let setter = NSSelectorFromString("setTextRendererFontSize:")
+        guard player.responds(to: setter) else {
+            assertionFailure("MobileVLCKit is missing the text renderer size setter")
+            return
+        }
+        player.perform(setter, with: NSNumber(value: Int((16 / subtitleScale).rounded())))
+    }
+
     func selectSubtitle(id: Int32) { player.currentVideoSubTitleIndex = id }
     func addSubtitle(uri: String) {
         if let url = URL(string: uri) { player.addPlaybackSlave(url, type: .subtitle, enforce: false) }

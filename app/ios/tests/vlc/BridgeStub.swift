@@ -19,6 +19,8 @@ protocol IosVlcPlayer {
     func stop()
     func close()
     func seek(positionMillis: Int64)
+    var subtitleScale: Float { get }
+    func setSubtitleScale(scale: Float)
     func setRate(rate: Float)
     func setVolume(volume: Float, muted: Bool)
     func setAspect(mode: Int32)

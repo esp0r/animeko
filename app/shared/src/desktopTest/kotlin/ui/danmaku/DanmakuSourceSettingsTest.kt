@@ -105,8 +105,7 @@ class DanmakuSourceSettingsTest {
                 )
             }
         }
-        onNodeWithTag("danmaku-source-${dandan.value}").performClick()
-        onNodeWithTag("danmaku-source-shift").performClick()
+        onNodeWithTag("danmaku-delay-${dandan.value}").performClick()
         onNodeWithTag("danmaku-shift-increase").performClick()
         onNodeWithTag("danmaku-shift-confirm").performClick()
         runOnIdle {

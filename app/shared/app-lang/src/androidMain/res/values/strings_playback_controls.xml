@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="video_subtitle_size">CC size</string>
+    <string name="video_subtitle_size_hint">Changes text subtitles immediately and remembers the size. Styled ASS and bitmap subtitles may use their own size.</string>
+    <string name="video_subtitle_size_reset">Reset</string>
+    <string name="video_subtitle_size_done">Done</string>
+    <string name="video_danmaku_delay">Delay</string>
+</resources>

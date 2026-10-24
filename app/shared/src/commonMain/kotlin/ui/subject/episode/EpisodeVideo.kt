@@ -185,6 +185,8 @@ import me.him188.ani.utils.platform.isDesktop
 import me.him188.ani.utils.platform.isIos
 import me.him188.ani.utils.platform.isMobile
 import org.jetbrains.compose.resources.stringResource
+import me.him188.ani.app.videoplayer.player.SubtitleSize
+import me.him188.ani.app.videoplayer.ui.progress.SubtitleSizeControl
 import org.openani.mediamp.MediampPlayer
 import org.openani.mediamp.features.audioTracks
 import org.openani.mediamp.features.subtitleTracks
@@ -597,6 +599,14 @@ internal fun EpisodeVideoImpl(
 
                             playerState.subtitleTracks?.let {
                                 PlayerControllerDefaults.SubtitleSwitcher(it)
+                            }
+                            val subtitleSizeAlwaysOnRequester =
+                                rememberAlwaysOnRequester(playerControllerState, "subtitleSize")
+                            playerState.features[SubtitleSize]?.let { size ->
+                                SubtitleSizeControl(size) { open ->
+                                    if (open) subtitleSizeAlwaysOnRequester.request()
+                                    else subtitleSizeAlwaysOnRequester.cancelRequest()
+                                }
                             }
 
                             val playbackSpeedAlwaysOnRequester =

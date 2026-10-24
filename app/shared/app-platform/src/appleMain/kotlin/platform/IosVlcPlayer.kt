@@ -22,6 +22,8 @@ interface IosVlcPlayer {
     fun stop()
     fun close()
     fun seek(positionMillis: Long)
+    val subtitleScale: Float
+    fun setSubtitleScale(scale: Float)
     fun setRate(rate: Float)
     fun setVolume(volume: Float, muted: Boolean)
     fun setAspect(mode: Int)

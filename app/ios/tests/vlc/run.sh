@@ -41,7 +41,7 @@ xcrun simctl boot "$device" || true
 xcrun simctl bootstatus "$device" -b
 xcrun simctl install "$device" "$app"
 data=$(xcrun simctl get_app_container "$device" org.animeko.vlctest data)
-rm -f "$data/Documents/subtitle-captured"
+rm -f "$data/Documents/subtitle-captured" "$data/Documents/subtitle-large-captured"
 xcrun simctl launch --console "$device" org.animeko.vlctest > build/native-vlc.log 2>&1 &
 launch_pid=$!
 trap 'kill "$launch_pid" 2>/dev/null || true' EXIT
@@ -55,7 +55,16 @@ done
 if [ "$ready" != true ]; then echo 'VLC_TEST_FAILED: simulator did not reach subtitle frame'; cat build/native-vlc.log; exit 1; fi
 xcrun simctl io "$device" screenshot build/chinese-subtitles.png
 touch "$data/Documents/subtitle-captured"
+ready=false
+for attempt in $(seq 1 900); do
+  if grep -q VLC_SUBTITLE_LARGE_READY build/native-vlc.log; then ready=true; break; fi
+  if ! kill -0 "$launch_pid" 2>/dev/null; then break; fi
+  sleep 0.2
+done
+if [ "$ready" != true ]; then cat build/native-vlc.log; exit 1; fi
+xcrun simctl io "$device" screenshot build/chinese-subtitles-large.png
+touch "$data/Documents/subtitle-large-captured"
 wait "$launch_pid" || { cat build/native-vlc.log; exit 1; }
 cat build/native-vlc.log
-xcrun swift verify_subtitles.swift build/chinese-subtitles.png
+xcrun swift verify_subtitles.swift build/chinese-subtitles.png build/chinese-subtitles-large.png
 grep -q VLC_TEST_PASSED build/native-vlc.log

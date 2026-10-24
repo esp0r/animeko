@@ -79,7 +79,15 @@ class IosVlcMediampPlayer(
             impl.setAspect(mode.ordinal)
         }
     }
+    private val subtitleSizeFeature = object : SubtitleSize {
+        override val scale = MutableStateFlow(impl.subtitleScale)
+        override fun setScale(scale: Float) {
+            impl.setSubtitleScale(if (scale.isFinite()) scale.coerceIn(0.5f, 2f) else 1f)
+            this.scale.value = impl.subtitleScale
+        }
+    }
     override val features = buildPlayerFeatures {
+        add(SubtitleSize, subtitleSizeFeature)
         add(PlaybackSpeed, machinePlaybackSpeed())
         add(AudioLevelController, volumeFeature)
         add(VideoAspectRatio, aspectFeature)

@@ -23,6 +23,29 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class IosVlcMediampPlayerTest {
     @Test
+    fun subtitleScaleUsesSavedValueAndSurvivesMediaChanges() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val native = FakeVlc()
+        native.setSubtitleScale(1.5f)
+        val player = IosVlcMediampPlayer(coroutineContext, native)
+        try {
+            val size = player.features[SubtitleSize]!!
+            assertEquals(1.5f, size.scale.value)
+            player.setMediaData(UriMediaData("file:///first.mkv"))
+            size.setScale(0.7f)
+            assertEquals(0.7f, native.subtitleScale)
+            player.setMediaData(UriMediaData("file:///second.mkv"))
+            assertEquals(0.7f, size.scale.value)
+            size.setScale(10f)
+            assertEquals(2f, native.subtitleScale)
+            size.setScale(Float.NaN)
+            assertEquals(1f, native.subtitleScale)
+        } finally {
+            player.close(); runCurrent(); Dispatchers.resetMain()
+        }
+    }
+
+    @Test
     fun pausedOpenAndSeekPreserveIntent() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val native = FakeVlc()
@@ -104,6 +127,9 @@ private class FakeVlc : IosVlcPlayer {
     override fun stop() { phase = 0 }
     override fun close() = stop()
     override fun seek(positionMillis: Long) { this.positionMillis = positionMillis }
+    private var savedSubtitleScale = 1f
+    override val subtitleScale get() = savedSubtitleScale
+    override fun setSubtitleScale(scale: Float) { savedSubtitleScale = scale }
     override fun setRate(rate: Float) {}
     override fun setVolume(volume: Float, muted: Boolean) {}
     override fun setAspect(mode: Int) {}

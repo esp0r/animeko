@@ -25,6 +25,7 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
         let fontURL = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL
         require(fontURL?.lastPathComponent == "NotoSansCJKsc-Regular.otf", "CoreText did not select bundled font")
         let url = Bundle.main.url(forResource: "fixture", withExtension: "mkv")!
+        player.setSubtitleScale(scale: 1)
         player.open(uri: url.absoluteString, headers: [:], startPositionMillis: 0)
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [self] _ in
             tick += 1
@@ -50,6 +51,20 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
                 step = 2
             case 2 where tick - pausedTick >= 6 && FileManager.default.fileExists(atPath: NSHomeDirectory() + "/Documents/subtitle-captured"):
                 require(abs(player.positionMillis - pausedAt) < 200, "pause did not hold position")
+                player.setSubtitleScale(scale: 1.5)
+                require(player.subtitleScale == 1.5, "subtitle scale was not applied")
+                let restored = SwiftVlcPlayer()
+                require(restored.subtitleScale == 1.5, "subtitle scale was not persisted")
+                restored.close()
+                player.play()
+                step = 6
+            case 6 where player.phase == 3 && player.positionMillis > pausedAt + 500:
+                player.pause()
+                step = 7
+            case 7 where player.phase == 4:
+                print("VLC_SUBTITLE_LARGE_READY"); fflush(stdout)
+                step = 8
+            case 8 where FileManager.default.fileExists(atPath: NSHomeDirectory() + "/Documents/subtitle-large-captured"):
                 require(player.seekable, "local MKV is not seekable")
                 player.setAspect(mode: 2)
                 player.seek(positionMillis: 4000)
