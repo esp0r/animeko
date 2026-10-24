@@ -27,6 +27,7 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     private var aspect: Int32 = 0
     private var aspectString: UnsafeMutablePointer<CChar>?
     private var cropString: UnsafeMutablePointer<CChar>?
+    private var subtitleRefresh: DispatchWorkItem?
 
     // FreeType needs a readable font file as well as a CoreText family match.
     // Bundling the font keeps CJK captions independent of system font storage.
@@ -171,6 +172,8 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     }
     func pause() { player.pause() }
     func stop() {
+        subtitleRefresh?.cancel()
+        subtitleRefresh = nil
         pausedSeek = nil
         seekResumeDeadline = nil
         generation += 1
@@ -229,6 +232,17 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         subtitleScale = scale.isFinite ? min(2, max(0.5, scale)) : 1
         UserDefaults.standard.set(subtitleScale, forKey: Self.subtitleScaleKey)
         applySubtitleScale()
+        subtitleRefresh?.cancel()
+        // A decoded text cue retains its rendered bitmap. Seeking to the current
+        // position re-decodes that cue without changing the play/pause intent.
+        // Coalesce slider events to avoid repeated decoder flushes while dragging.
+        let refresh = DispatchWorkItem { [weak self] in
+            guard let self, self.player.isSeekable, self.selectedSubtitle >= 0,
+                  self.phase == 3 || self.phase == 4 else { return }
+            self.seek(positionMillis: self.positionMillis)
+        }
+        subtitleRefresh = refresh
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: refresh)
     }
 
     private func applySubtitleScale() {
