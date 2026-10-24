@@ -39,7 +39,7 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
                 require(!player.subtitleTracks.isEmpty, "embedded SRT missing")
                 require(player.selectedSubtitle == player.subtitleTracks[0].id, "default Chinese subtitle not selected")
                 player.selectAudio(id: player.audioTracks[0].id)
-                player.setAspect(mode: 2)
+                player.setAspect(mode: 0)
                 player.setVolume(volume: 0.5, muted: false)
                 player.pause()
                 step = 1
@@ -51,6 +51,7 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
             case 2 where tick - pausedTick >= 6 && FileManager.default.fileExists(atPath: NSHomeDirectory() + "/Documents/subtitle-captured"):
                 require(abs(player.positionMillis - pausedAt) < 200, "pause did not hold position")
                 require(player.seekable, "local MKV is not seekable")
+                player.setAspect(mode: 2)
                 player.seek(positionMillis: 4000)
                 step = 3
             case 3 where abs(player.positionMillis - 4000) < 750:

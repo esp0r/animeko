@@ -5,6 +5,7 @@ let request = VNRecognizeTextRequest()
 request.recognitionLevel = .accurate
 request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
 request.usesLanguageCorrection = false
+request.minimumTextHeight = 0.005
 let handler = VNImageRequestHandler(url: URL(fileURLWithPath: CommandLine.arguments[1]))
 try handler.perform([request])
 let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined()
