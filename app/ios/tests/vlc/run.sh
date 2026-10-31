@@ -78,4 +78,7 @@ for cache in 1500 300 100; do
   SIMCTL_CHILD_VLC_RATE_PROBE=1 SIMCTL_CHILD_VLC_TEST_CACHE="$cache" \
     xcrun simctl launch --terminate-running-process --console "$device" org.animeko.vlctest > "build/rate-$cache.log" 2>&1
   grep 'VLC_RATE_' "build/rate-$cache.log"
+  cp "$data/Library/Caches/animeko-player-diagnostics.log" "build/rate-$cache-diagnostics.log"
+  grep -q 'rate request=2.5' "build/rate-$cache-diagnostics.log"
+  grep -q 'rate request=1.0' "build/rate-$cache-diagnostics.log"
 done

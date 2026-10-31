@@ -58,6 +58,9 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         player.drawable = surface
         player.delegate = self
         applySubtitleScale()
+        #if DEBUG || VLC_TESTING
+        player.libraryInstance.loggers = [PlayerDiagnostics.shared]
+        #endif
         #if VLC_TESTING
         player.libraryInstance.debugLogging = true
         player.libraryInstance.debugLoggingLevel = 4
@@ -168,6 +171,9 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     }
 
     func play() {
+        #if DEBUG || VLC_TESTING
+        diagnosticSnapshot("play requested")
+        #endif
         if pausedSeek != nil { seekResumeDeadline = ProcessInfo.processInfo.systemUptime + 5 }
         terminalPhase = nil
         nativePaused = false
@@ -175,7 +181,12 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         try? AVAudioSession.sharedInstance().setActive(true)
         player.play()
     }
-    func pause() { player.pause() }
+    func pause() {
+        #if DEBUG || VLC_TESTING
+        diagnosticSnapshot("pause requested")
+        #endif
+        player.pause()
+    }
     func stop() {
         subtitleRefresh?.cancel()
         subtitleRefresh = nil
@@ -217,6 +228,9 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         }
     }
     func seek(positionMillis: Int64) {
+        #if DEBUG || VLC_TESTING
+        diagnosticSnapshot("seek requested target=\(positionMillis)")
+        #endif
         guard player.isSeekable else { return }
         let target = max(0, durationMillis > 0 ? min(positionMillis, durationMillis) : positionMillis)
         if nativePaused || player.state == .paused {
@@ -227,7 +241,31 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         }
         player.time = VLCTime(int: Int32(clamping: target))
     }
-    func setRate(rate: Float) { player.rate = rate }
+    func setRate(rate: Float) {
+        #if DEBUG || VLC_TESTING
+        PlayerDiagnostics.shared.arm()
+        diagnosticSnapshot("rate request=\(rate) native=\(player.rate)")
+        let began = ProcessInfo.processInfo.systemUptime
+        #endif
+        player.rate = rate
+        #if DEBUG || VLC_TESTING
+        diagnosticSnapshot("rate returned elapsedMs=\((ProcessInfo.processInfo.systemUptime - began) * 1000)")
+        let load = generation
+        for delay in [0.05, 0.15, 0.3, 0.6, 1.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, self.generation == load else { return }
+                self.diagnosticSnapshot("rate sample after=\(delay) requested=\(rate)")
+            }
+        }
+        #endif
+    }
+
+    #if DEBUG || VLC_TESTING
+    private func diagnosticSnapshot(_ event: String) {
+        let stats = player.media?.statistics
+        PlayerDiagnostics.shared.record("\(event) phase=\(phase) position=\(positionMillis) nativeRate=\(player.rate) frames=\(stats?.displayedPictures ?? 0) lost=\(stats?.lostPictures ?? 0) audio=\(stats?.playedAudioBuffers ?? 0) audioLost=\(stats?.lostAudioBuffers ?? 0)")
+    }
+    #endif
     func setVolume(volume: Float, muted: Bool) {
         player.audio?.volume = Int32(min(2, max(0, volume)) * 100)
         player.audio?.isMuted = muted
@@ -267,6 +305,9 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     }
     func setAspect(mode: Int32) { aspect = mode; updateAspect() }
     private func updateAspect() {
+        #if DEBUG || VLC_TESTING
+        PlayerDiagnostics.shared.record("layout mode=\(aspect) size=\(surface.bounds.size)")
+        #endif
         guard surface.bounds.width > 0, surface.bounds.height > 0 else { return }
         player.videoAspectRatio = nil
         player.videoCropGeometry = nil
@@ -283,3 +324,54 @@ private final class VlcSurface: UIView {
     var onLayout: (() -> Void)?
     override func layoutSubviews() { super.layoutSubviews(); onLayout?() }
 }
+
+#if DEBUG || VLC_TESTING
+/// Bounded local diagnostics around a rate change; disk writes run off the UI thread.
+private final class PlayerDiagnostics: NSObject, VLCLogging {
+    static let shared = PlayerDiagnostics()
+    var level: VLCLogLevel = .debug
+    private let queue = DispatchQueue(label: "animeko.player-diagnostics")
+    private let lock = NSLock()
+    private var deadline: TimeInterval = 0
+    private var file: FileHandle?
+    private var bytes = 0
+
+    override init() {
+        super.init()
+        queue.async { [self] in
+            guard let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
+            let url = directory.appendingPathComponent("animeko-player-diagnostics.log")
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+            file = try? FileHandle(forWritingTo: url)
+        }
+    }
+
+    func arm() {
+        lock.lock()
+        deadline = ProcessInfo.processInfo.systemUptime + 8
+        lock.unlock()
+    }
+
+    func record(_ message: String) {
+        let now = ProcessInfo.processInfo.systemUptime
+        lock.lock()
+        let enabled = now <= deadline
+        lock.unlock()
+        guard enabled else { return }
+        let line = String(format: "%.6f ", now) + message + "\n"
+        queue.async { [self] in
+            guard let data = line.data(using: .utf8), bytes + data.count <= 2 * 1024 * 1024 else { return }
+            try? file?.write(contentsOf: data)
+            bytes += data.count
+        }
+    }
+
+    func handleMessage(_ message: String, logLevel level: VLCLogLevel, context: VLCLogContext?) {
+        let text = message.lowercased()
+        guard !text.contains("://"), !text.contains("cookie"), !text.contains("authorization"),
+              ["late", "early", "resampl", "silence", "flush", "buffer", "rate", "clock", "discontinu", "decoder", "vout"].contains(where: text.contains) else { return }
+        record("vlc[\(context?.module ?? "unknown")] \(message)")
+    }
+}
+#endif
