@@ -15,7 +15,7 @@ xcrun swiftc -D VLC_TESTING -sdk "$sdk" -target "${arch}-apple-ios16.0-simulator
   -framework Security -framework CoreText -framework OpenGLES -framework QuartzCore \
   -lc++ -lxml2 -lz -lbz2 -liconv -Xlinker -ObjC \
   -Xlinker -rpath -Xlinker @executable_path/Frameworks \
-  BridgeStub.swift ../../Animeko/SwiftVlcPlayer.swift main.swift -o "$app/VlcHarness"
+  BridgeStub.swift ../../Animeko/SwiftVlcPlayer.swift RateProbe.swift main.swift -o "$app/VlcHarness"
 cp fixture.mkv "$app/"
 cp -R ../../Animeko/SubtitleFonts "$app/"
 mkdir -p "$app/Frameworks"
@@ -68,3 +68,13 @@ wait "$launch_pid" || { cat build/native-vlc.log; exit 1; }
 cat build/native-vlc.log
 xcrun swift verify_subtitles.swift build/chinese-subtitles.png build/chinese-subtitles-large.png
 grep -q VLC_TEST_PASSED build/native-vlc.log
+
+# Compare rate transitions over the same loopback HTTP transport used by BT playback.
+python3 -m http.server 18765 --bind 127.0.0.1 > build/rate-http.log 2>&1 &
+http_pid=$!
+trap 'kill "$http_pid" 2>/dev/null || true' EXIT
+for cache in 1500 300 100; do
+  SIMCTL_CHILD_VLC_RATE_PROBE=1 SIMCTL_CHILD_VLC_TEST_CACHE="$cache" \
+    xcrun simctl launch --terminate-running-process --console "$device" org.animeko.vlctest > "build/rate-$cache.log" 2>&1
+  grep 'VLC_RATE_' "build/rate-$cache.log"
+done

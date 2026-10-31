@@ -89,4 +89,4 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 }
-UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(TestDelegate.self))
+UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(ProcessInfo.processInfo.environment["VLC_RATE_PROBE"] == "1" ? RateProbeDelegate.self : TestDelegate.self))

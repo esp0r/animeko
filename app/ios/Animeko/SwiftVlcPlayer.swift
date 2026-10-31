@@ -106,6 +106,7 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     }
     #if VLC_TESTING
     var nativePositionMillis: Int64 { max(0, Int64(player.time.intValue)) }
+    var displayedPictures: Int32 { player.media?.statistics.displayedPictures ?? 0 }
     #endif
     var durationMillis: Int64 { max(0, Int64(player.media?.length.intValue ?? 0)) }
     var videoWidth: Int32 { Int32(player.videoSize.width) }
@@ -127,7 +128,12 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         stop()
         guard let url = URL(string: uri) else { return }
         let media = VLCMedia(url: url)
+        #if VLC_TESTING
+        let testCache = ProcessInfo.processInfo.environment["VLC_TEST_CACHE"] ?? "1500"
+        media.addOption(":network-caching=\(testCache)")
+        #else
         media.addOption(":network-caching=1500")
+        #endif
         media.addOption(":file-caching=500")
         if startPositionMillis > 0 {
             media.addOption(":start-time=\(Double(startPositionMillis) / 1000)")
