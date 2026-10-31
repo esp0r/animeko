@@ -58,12 +58,12 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         player.drawable = surface
         player.delegate = self
         applySubtitleScale()
-        #if DEBUG || VLC_TESTING
-        player.libraryInstance.loggers = [PlayerDiagnostics.shared]
-        #endif
         #if VLC_TESTING
-        player.libraryInstance.debugLogging = true
-        player.libraryInstance.debugLoggingLevel = 4
+        let consoleLogger = VLCConsoleLogger()
+        consoleLogger.level = .debug
+        player.libraryInstance.loggers = [PlayerDiagnostics.shared, consoleLogger]
+        #elseif DEBUG
+        player.libraryInstance.loggers = [PlayerDiagnostics.shared]
         #endif
         surface.onLayout = { [weak self] in self?.updateAspect() }
         let center = NotificationCenter.default
