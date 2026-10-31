@@ -8,6 +8,7 @@ test -n "$framework"
 app="$PWD/build/VlcHarness.app"
 mkdir -p "$app"
 sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
+xcrun clang -isysroot "$sdk" -target "${arch}-apple-ios16.0-simulator" -c FrameProbe.m -o build/FrameProbe.o
 xcrun swiftc -D VLC_TESTING -sdk "$sdk" -target "${arch}-apple-ios16.0-simulator" \
   -F "$(dirname "$framework")" -framework MobileVLCKit \
   -framework UIKit -framework AVFoundation -framework AudioToolbox \
@@ -15,7 +16,7 @@ xcrun swiftc -D VLC_TESTING -sdk "$sdk" -target "${arch}-apple-ios16.0-simulator
   -framework Security -framework CoreText -framework OpenGLES -framework QuartzCore \
   -lc++ -lxml2 -lz -lbz2 -liconv -Xlinker -ObjC \
   -Xlinker -rpath -Xlinker @executable_path/Frameworks \
-  BridgeStub.swift ../../Animeko/SwiftVlcPlayer.swift RateProbe.swift main.swift -o "$app/VlcHarness"
+  build/FrameProbe.o BridgeStub.swift ../../Animeko/SwiftVlcPlayer.swift RateProbe.swift main.swift -o "$app/VlcHarness"
 cp fixture.mkv "$app/"
 cp -R ../../Animeko/SubtitleFonts "$app/"
 mkdir -p "$app/Frameworks"

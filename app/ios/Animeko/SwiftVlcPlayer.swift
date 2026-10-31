@@ -106,7 +106,6 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     }
     #if VLC_TESTING
     var nativePositionMillis: Int64 { max(0, Int64(player.time.intValue)) }
-    var displayedPictures: Int32 { player.media?.statistics.displayedPictures ?? 0 }
     #endif
     var durationMillis: Int64 { max(0, Int64(player.media?.length.intValue ?? 0)) }
     var videoWidth: Int32 { Int32(player.videoSize.width) }
