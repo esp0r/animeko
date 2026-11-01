@@ -13,7 +13,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 180
     env:
-      SOURCE_ROOT: ${{ runner.temp }}/vlckit-source
+      SOURCE_ROOT: ${{ github.workspace }}/.vlc-source
       MAKE_JOBS: '3'
     steps:
       - uses: actions/checkout@v4
