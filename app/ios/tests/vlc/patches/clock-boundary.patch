@@ -1,0 +1,164 @@
+--- a/src/input/clock.c
++++ b/src/input/clock.c
+@@ -32,4 +32,6 @@
+
+ #include <vlc_common.h>
++#include "animeko_rate_timeline.h"
++#include <stdio.h>
+ #include <vlc_input.h>
+ #include "clock.h"
+@@ -179,4 +181,6 @@
+     vlc_tick_t i_pts_delay;
+     vlc_tick_t i_pause_date;
++    animeko_rate_timeline presentation;
++    vlc_tick_t audio_end, video_last;
+ };
+
+@@ -217,4 +221,6 @@
+     cl->b_paused = false;
+     cl->i_pause_date = VLC_TICK_INVALID;
++    cl->presentation.count = 0;
++    cl->audio_end = cl->video_last = VLC_TICK_INVALID;
+
+     return cl;
+@@ -271,4 +277,6 @@
+     if( b_reset_reference )
+     {
++        cl->presentation.count = 0;
++        cl->audio_end = cl->video_last = VLC_TICK_INVALID;
+         cl->i_next_drift_update = VLC_TICK_INVALID;
+         AvgReset( &cl->drift );
+@@ -338,4 +346,6 @@
+     cl->b_has_external_clock = false;
+     cl->i_ts_max = VLC_TICK_INVALID;
++    cl->presentation.count = 0;
++    cl->audio_end = cl->video_last = VLC_TICK_INVALID;
+
+     vlc_mutex_unlock( &cl->lock );
+@@ -351,6 +361,28 @@
+     if( cl->b_has_reference )
+     {
+-        /* Move the reference point (as if we were playing at the new rate
+-         * from the start */
++        if( cl->i_rate != i_rate && cl->audio_end > VLC_TICK_INVALID )
++        {
++            if( !cl->presentation.count )
++                animeko_rate_init( &cl->presentation, cl->ref.i_stream,
++                    cl->ref.i_system + cl->i_pts_delay + ClockGetTsOffset( cl ), cl->i_rate );
++            vlc_tick_t point = animeko_rate_map( &cl->presentation, cl->audio_end );
++            vlc_tick_t oldest = cl->video_last > VLC_TICK_INVALID
++                ? __MIN( cl->audio_end, cl->video_last ) : cl->audio_end - 2 * CLOCK_FREQ;
++            animeko_rate_prune( &cl->presentation, oldest );
++            if( point >= mdate() - CLOCK_FREQ / 10 &&
++                point < mdate() + 2 * CLOCK_FREQ &&
++                animeko_rate_append( &cl->presentation, cl->audio_end, i_rate ) )
++            {
++                cl->ref.i_system = point - (cl->audio_end - cl->ref.i_stream) * i_rate / INPUT_RATE_DEFAULT
++                    - cl->i_pts_delay - cl->i_pts_delay * (i_rate - INPUT_RATE_DEFAULT) / INPUT_RATE_DEFAULT;
++                fprintf(stderr, "ANIMEKO_BOUNDARY stream=%"PRId64" system=%"PRId64" old=%d new=%d segments=%zu\n",
++                    cl->audio_end, point, cl->i_rate, i_rate, cl->presentation.count);
++                cl->i_rate = i_rate;
++                vlc_mutex_unlock( &cl->lock );
++                return;
++            }
++            cl->presentation.count = 0;
++        }
++        /* Video-only streams use the input clock reference. */
+         cl->ref.i_system = cl->last.i_system - (cl->last.i_system - cl->ref.i_system) * i_rate / cl->i_rate;
+     }
+@@ -376,4 +408,5 @@
+             cl->ref.i_system += i_duration;
+             cl->last.i_system += i_duration;
++            animeko_rate_shift( &cl->presentation, i_duration );
+         }
+     }
+@@ -405,7 +438,7 @@
+  * input_clock_ConvertTS
+  *****************************************************************************/
+-int input_clock_ConvertTS( vlc_object_t *p_object, input_clock_t *cl,
++int input_clock_ConvertMediaTS( vlc_object_t *p_object, input_clock_t *cl,
+                            int *pi_rate, vlc_tick_t *pi_ts0, vlc_tick_t *pi_ts1,
+-                           vlc_tick_t i_ts_bound )
++                           vlc_tick_t i_ts_bound, int category, vlc_tick_t duration )
+ {
+     assert( pi_ts0 );
+@@ -426,12 +459,20 @@
+     }
+
+-    /* */
+-    const vlc_tick_t i_ts_buffering = cl->i_buffering_duration * cl->i_rate / INPUT_RATE_DEFAULT;
+-    const vlc_tick_t i_ts_delay = cl->i_pts_delay + ClockGetTsOffset( cl );
++    const vlc_tick_t stream = *pi_ts0 + AvgGet( &cl->drift );
++    int rate = cl->presentation.count ? animeko_rate_at( &cl->presentation, stream )->rate : cl->i_rate;
++    if( pi_rate ) *pi_rate = rate;
++    const vlc_tick_t i_ts_buffering = cl->i_buffering_duration * rate / INPUT_RATE_DEFAULT;
++    const vlc_tick_t i_ts_delay = cl->i_pts_delay + cl->i_pts_delay * (rate - INPUT_RATE_DEFAULT) / INPUT_RATE_DEFAULT;
++    if( *pi_ts0 > VLC_TICK_INVALID )
++    {
++        if( category == AUDIO_ES && duration > 0 ) cl->audio_end = stream + duration;
++        if( category == VIDEO_ES ) cl->video_last = stream;
++    }
+
+     /* */
+     if( *pi_ts0 > VLC_TICK_INVALID )
+     {
+-        *pi_ts0 = ClockStreamToSystem( cl, *pi_ts0 + AvgGet( &cl->drift ) );
++        *pi_ts0 = cl->presentation.count ? animeko_rate_map( &cl->presentation, stream ) - i_ts_delay
++            : ClockStreamToSystem( cl, stream );
+         if( *pi_ts0 > cl->i_ts_max )
+             cl->i_ts_max = *pi_ts0;
+@@ -442,6 +483,6 @@
+     if( pi_ts1 && *pi_ts1 > VLC_TICK_INVALID )
+     {
+-        *pi_ts1 = ClockStreamToSystem( cl, *pi_ts1 + AvgGet( &cl->drift ) ) +
+-                  i_ts_delay;
++        *pi_ts1 = cl->presentation.count ? animeko_rate_map( &cl->presentation, *pi_ts1 + AvgGet( &cl->drift ) )
++            : ClockStreamToSystem( cl, *pi_ts1 + AvgGet( &cl->drift ) ) + i_ts_delay;
+     }
+
+@@ -464,4 +505,10 @@
+  * input_clock_GetRate: Return current rate
+  *****************************************************************************/
++int input_clock_ConvertTS( vlc_object_t *obj, input_clock_t *cl, int *rate,
++    vlc_tick_t *ts0, vlc_tick_t *ts1, vlc_tick_t bound )
++{
++    return input_clock_ConvertMediaTS( obj, cl, rate, ts0, ts1, bound, UNKNOWN_ES, 0 );
++}
++
+ int input_clock_GetRate( input_clock_t *cl )
+ {
+@@ -520,4 +567,5 @@
+     cl->ref.i_system += i_offset;
+     cl->last.i_system += i_offset;
++    animeko_rate_shift( &cl->presentation, i_offset );
+
+     vlc_mutex_unlock( &cl->lock );
+@@ -565,5 +613,9 @@
+      */
+     if( cl->i_pts_delay < i_pts_delay )
++    {
+         cl->i_pts_delay = i_pts_delay;
++        cl->presentation.count = 0;
++        cl->audio_end = cl->video_last = VLC_TICK_INVALID;
++    }
+
+     /* */
+--- a/src/input/clock.h
++++ b/src/input/clock.h
+@@ -116,4 +116,6 @@
+  */
+ int input_clock_GetRate( input_clock_t * );
++int input_clock_ConvertMediaTS( vlc_object_t *, input_clock_t *, int *,
++    vlc_tick_t *, vlc_tick_t *, vlc_tick_t, int category, vlc_tick_t duration );
+
+ /**
+--- a/src/input/decoder.c
++++ b/src/input/decoder.c
+@@ -803,5 +803,6 @@
+         if( i_ts_bound != INT64_MAX )
+             i_ts_bound += i_es_delay;
+-        if( input_clock_ConvertTS( VLC_OBJECT(p_dec), p_clock, &i_rate, pi_ts0, pi_ts1, i_ts_bound ) ) {
++        if( input_clock_ConvertMediaTS( VLC_OBJECT(p_dec), p_clock, &i_rate, pi_ts0, pi_ts1,
++            i_ts_bound, p_dec->fmt_in.i_cat, pi_duration ? *pi_duration : 0 ) ) {
+             const char *psz_name = module_get_name( p_dec->p_module, false );
+             if( pi_ts1 != NULL )

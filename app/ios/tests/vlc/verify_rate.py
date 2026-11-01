@@ -1,5 +1,6 @@
 """Validate completed transitions and compare local-cache audio discontinuities."""
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -22,6 +23,13 @@ for codec in ("h264", "hevc"):
                 silence.extend(-int(x) / 1000 for x in re.findall(r"playback way too early \((-?\d+)\): playing silence", segment))
                 flush.extend(int(x) / 1000 for x in re.findall(r"playback (?:way )?too late \((-?\d+)\): flushing buffers", segment))
             results[case] = {"silence_ms": silence, "flush_drift_ms": flush}
+(root / "rate-summary.json").write_text(json.dumps(results, indent=2) + "\n")
+if os.environ.get("VLC_RATE_BOUNDARY") == "1":
+    pcm = json.loads((root / "pcm-summary.json").read_text())
+    assert all(case["no_measured_silence_in_rate_windows"] for case in pcm.values()), "PCM gaps remain in rate transitions"
+    assert all(not case["silence_ms"] and not case["flush_drift_ms"] for case in results.values()), "Audio resynchronization remains"
+    print("VLC_RATE_AUDIO_PASSED: rates settle and no measured PCM gaps; video and content A/V alignment still require verification")
+    sys.exit(0)
 # A paired H.264 control detects loss of the latency policy without interpreting
 # host-dependent HEVC software decoding as an iPad performance measurement.
 for transport in ("file", "http"):

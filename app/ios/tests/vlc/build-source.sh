@@ -22,6 +22,10 @@ if [ ! -f "$root/.official-patches-applied" ]; then
   git -C "$root/libvlc/vlc" -c user.name='Animeko CI' -c user.email='ci@localhost' am "$root"/libvlc/patches/*.patch
   git -C "$root/libvlc/vlc" rev-parse HEAD > "$root/.official-patches-applied"
 fi
+if [ -f "$root/.animeko-clock-boundary.patch" ]; then
+  git -C "$root/libvlc/vlc" apply --reverse "$root/.animeko-clock-boundary.patch"
+  rm "$root/.animeko-clock-boundary.patch"
+fi
 for name in rate-trace pcm-probe; do
   trace_patch="$script_dir/patches/$name.patch"
   if git -C "$root/libvlc/vlc" apply --reverse --check "$trace_patch" 2>/dev/null; then
@@ -32,6 +36,12 @@ for name in rate-trace pcm-probe; do
     git -C "$root/libvlc/vlc" apply "$trace_patch"
   fi
 done
+if [ "${VLC_RATE_BOUNDARY:-0}" = 1 ]; then
+  git -C "$root/libvlc/vlc" apply --check "$script_dir/patches/clock-boundary.patch"
+  git -C "$root/libvlc/vlc" apply "$script_dir/patches/clock-boundary.patch"
+  cp "$script_dir/patches/clock-boundary.patch" "$root/.animeko-clock-boundary.patch"
+fi
+cp "$script_dir/rate_timeline.h" "$root/libvlc/vlc/src/input/animeko_rate_timeline.h"
 cp "$script_dir/pcm_probe.h" "$root/libvlc/vlc/modules/audio_output/animeko_pcm_probe.h"
 # The upstream symbol collector assumes an arm64 build also has a device slice.
 # This job produces only an arm64 simulator slice, with the app's iOS minimum.

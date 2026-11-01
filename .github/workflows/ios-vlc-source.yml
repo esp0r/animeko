@@ -6,6 +6,10 @@ on:
         description: Record native clock and queue rate boundaries
         type: boolean
         default: true
+      boundary:
+        description: Test continuous presentation mapping at the audio boundary
+        type: boolean
+        default: true
   push:
     branches: [experiment/vlc3-clock]
 permissions:
@@ -23,6 +27,8 @@ jobs:
           python3 -m unittest discover -s app/ios/tests/vlc -p test_analyze_pcm.py
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined app/ios/tests/vlc/test_pcm_probe.c -o /tmp/pcm-probe
           /tmp/pcm-probe
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined app/ios/tests/vlc/test_rate_timeline.c -o /tmp/rate-timeline
+          /tmp/rate-timeline
   source:
     needs: pcm-probe
     runs-on: macos-15
@@ -31,6 +37,7 @@ jobs:
       SOURCE_ROOT: ${{ github.workspace }}/.vlc-source
       MAKE_JOBS: '3'
       VLC_RATE_TRACE: ${{ github.event_name == 'push' && '1' || inputs.trace && '1' || '0' }}
+      VLC_RATE_BOUNDARY: ${{ github.event_name == 'push' && '1' || inputs.boundary && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install compatible build tools
