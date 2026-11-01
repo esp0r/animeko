@@ -35,8 +35,8 @@ done
 cp "$script_dir/pcm_probe.h" "$root/libvlc/vlc/modules/audio_output/animeko_pcm_probe.h"
 # The upstream symbol collector assumes an arm64 build also has a device slice.
 # This job produces only an arm64 simulator slice, with the app's iOS minimum.
-git -C "$root" show "$kit:buildMobileVLCKit.sh" > "$root/buildMobileVLCKit-simulator.sh"
-python3 - "$root/buildMobileVLCKit-simulator.sh" <<'PY'
+git -C "$root" show "$kit:buildMobileVLCKit.sh" > "$root/buildMobileVLCKit-simulator.sh.new"
+python3 - "$root/buildMobileVLCKit-simulator.sh.new" <<'PY'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1])
 s = p.read_text()
@@ -44,7 +44,8 @@ edits = {
     'SDK_MIN=9.0': 'SDK_MIN=16.0',
     'if [ "$1" = "x86_64" ];then': 'if [ "$1" = "x86_64" ] || { [ "$1" = "aarch64" ] && [ "$BUILD_DEVICE" = "no" ]; };then',
     'spushd $arch/lib/vlc/plugins': 'spushd $actual_arch/lib/vlc/plugins',
-    '--disable-qt --disable-skins2': '--disable-qt --disable-skins2 --disable-ncurses',
+    '--disable-qt --disable-skins2': '--disable-qt --disable-skins2 --disable-ncurses --disable-gnutls',
+    'blacklist="\n    stats': 'blacklist="\n    gnutls\n    stats',
 }
 simulator_plugin = r'''SIMULATORLDFLAGS+="\$(PROJECT_DIR)/libvlc/vlc/install-"$OSSTYLE"Simulator/$actual_arch/lib/vlc/plugins/$file "'''
 edits[simulator_plugin] = simulator_plugin + r'''
@@ -60,6 +61,10 @@ for old, new in edits.items():
     s = s.replace(old, new)
 p.write_text(s)
 PY
+# Preserve the wrapper timestamp when its configure options are unchanged.
+if ! cmp -s "$root/buildMobileVLCKit-simulator.sh.new" "$root/buildMobileVLCKit-simulator.sh"; then
+  cp "$root/buildMobileVLCKit-simulator.sh.new" "$root/buildMobileVLCKit-simulator.sh"
+fi
 cd "$root"
 # GNU Make 4.4 provides the FIFO jobserver used by current Ninja builds.
 mkdir -p "$root/host-tools"
