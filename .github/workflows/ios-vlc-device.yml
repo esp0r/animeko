@@ -1,5 +1,6 @@
 name: iOS VLC device framework
 on:
+  workflow_call:
   workflow_dispatch:
   push:
     branches: [experiment/vlc3-clock]

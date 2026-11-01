@@ -13,6 +13,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  vlc-device:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/ios-vlc-device.yml
   vlc:
     runs-on: macos-15
     timeout-minutes: 30
@@ -58,8 +61,8 @@ jobs:
             torrent/anitorrent/build/native/${{ matrix.sdk }}/lib/
             torrent/anitorrent/build/native/${{ matrix.sdk }}/include/
           if-no-files-found: error
-  ipa:
-    # Build the deliverable explicitly after native playback checks pass.
+  app:
+    # Build the app binaries after native playback checks pass.
     if: github.event_name == 'workflow_dispatch'
     needs: [native, vlc]
     runs-on: macos-15
@@ -125,7 +128,7 @@ jobs:
         run: ./gradlew :app:shared:video-player:desktopTest --tests '*SubtitleSizeControlTest*' :app:shared:desktopTest --tests '*DanmakuSourceSettingsTest*' -Pandroid.compile.sdk=36 -Pani.anitorrent.prebuilt=true -Pkotlin.compiler.execution.strategy=in-process --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --max-workers=2
       - uses: actions/upload-artifact@v4
         with:
-          name: animeko-ios-bittorrent-unsigned
+          name: animeko-ios-base-unsigned
           path: app/ios/build/archives/debug/Animeko.ipa
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
@@ -135,3 +138,34 @@ jobs:
           path: |
             **/build/reports/
             **/build/logs/
+  ipa:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [app, vlc-device]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: animeko-ios-base-unsigned
+          path: ${{ runner.temp }}/base-ipa
+      - uses: actions/download-artifact@v4
+        with:
+          name: vlc-device-framework
+          path: ${{ runner.temp }}/vlc-device
+      - name: Embed the source synchronization framework
+        run: |
+          set -euo pipefail
+          base_ipa="$RUNNER_TEMP/base-ipa/Animeko.ipa"
+          base_sha=$(sha256sum "$base_ipa" | awk '{print $1}')
+          python3 app/ios/tests/vlc/package_ipa.py \
+            --base "$base_ipa" --base-sha256 "$base_sha" \
+            --framework-artifact "$RUNNER_TEMP/vlc-device" \
+            --application-commit "$GITHUB_SHA" --commit "$GITHUB_SHA" \
+            --output app/ios/build/archives/sync/Animeko.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: animeko-ios-bittorrent-unsigned
+          path: |
+            app/ios/build/archives/sync/Animeko.ipa
+            app/ios/build/archives/sync/Animeko.assembly.json
+          if-no-files-found: error
