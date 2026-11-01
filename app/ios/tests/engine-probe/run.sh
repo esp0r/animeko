@@ -10,13 +10,14 @@ test -n "$framework"
 app="$PWD/build/EngineProbe.app"
 mkdir -p "$app/Frameworks"
 sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
+xcrun clang -isysroot "$sdk" -target "$(uname -m)-apple-ios16.0-simulator" -c ../vlc/FrameProbe.m -o build/FrameProbe.o
 xcrun swiftc -sdk "$sdk" -target "$(uname -m)-apple-ios16.0-simulator" \
   -F "$(dirname "$framework")" -framework "$pod" -framework UIKit -framework AVFoundation \
   -framework AudioToolbox -framework VideoToolbox -framework CoreMedia -framework CFNetwork \
   -framework Security -framework CoreText -framework OpenGLES -framework QuartzCore \
   -framework Metal -framework MetalKit -framework AVKit -framework CoreVideo -framework SystemConfiguration \
   -lc++ -lxml2 -lz -lbz2 -liconv -Xlinker -ObjC -Xlinker -rpath -Xlinker @executable_path/Frameworks \
-  main.swift -o "$app/EngineProbe"
+  build/FrameProbe.o main.swift -o "$app/EngineProbe"
 cp -R "$framework" "$app/Frameworks/"
 codesign --force --sign - "$app/Frameworks/$pod.framework"
 cat > "$app/Info.plist" <<'PLIST'
@@ -26,12 +27,17 @@ PLIST
 device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for k,v in d["devices"].items() if "iOS" in k for x in v if "iPhone" in x["name"]))')
 xcrun simctl boot "$device" || true
 xcrun simctl bootstatus "$device" -b
-for codec in h264 hevc; do
+modes=auto
+if [ "$engine" = 4 ]; then modes="audio monotonic"; fi
+for mode in $modes; do
+ for codec in h264 hevc; do
   if [ "$codec" = h264 ]; then fixture=rate-fixture; else fixture=rate-hevc-fixture; fi
   cp "../vlc/$fixture.mkv" "$app/fixture.mkv"
   codesign --force --sign - "$app"
   xcrun simctl install "$device" "$app"
-  xcrun simctl launch --terminate-running-process --console "$device" org.animeko.engineprobe > "build/$codec.log" 2>&1
-  cat "build/$codec.log"
-  grep -q ENGINE_PROBE_PASSED "build/$codec.log"
+  if [ "$engine" = 4 ]; then export SIMCTL_CHILD_VLC_PROBE_CLOCK="$mode"; fi
+  xcrun simctl launch --terminate-running-process --console "$device" org.animeko.engineprobe > "build/$codec-$mode.log" 2>&1
+  cat "build/$codec-$mode.log"
+  grep -q ENGINE_PROBE_PASSED "build/$codec-$mode.log"
+ done
 done

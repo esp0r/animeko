@@ -6,6 +6,11 @@ import MobileVLCKit
 import VLCKit
 #endif
 
+@_silgen_name("frameProbeInstall") func frameProbeInstall()
+@_silgen_name("frameProbeCount") func frameProbeCount() -> Int32
+@_silgen_name("frameProbeStage") func frameProbeStage(_ stage: Int32)
+@_silgen_name("frameProbeGap") func frameProbeGap(_ stage: Int32) -> Double
+
 final class ProbeLogger: NSObject, VLCLogging {
     var level: VLCLogLevel = .debug
     func handleMessage(_ message: String, logLevel: VLCLogLevel, context: VLCLogContext?) {
@@ -19,13 +24,14 @@ final class ProbeLogger: NSObject, VLCLogging {
 
 final class Probe: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
-    let player = VLCMediaPlayer()
+    let player = VLCMediaPlayer(options: ProcessInfo.processInfo.environment["VLC_PROBE_CLOCK"].map { ["--clock-master=\($0)"] } ?? [])
     let logger = ProbeLogger()
     var timer: Timer?
     var start = ProcessInfo.processInfo.systemUptime
     var ready: TimeInterval?
     var step = 0
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        frameProbeInstall()
         let view = UIView()
         view.backgroundColor = .black
         let controller = UIViewController()
@@ -59,6 +65,7 @@ final class Probe: UIResponder, UIApplicationDelegate {
             if step < 6 && now - ready >= 3 + Double(step) * 2 {
                 let rate: Float = step % 2 == 0 ? 2.5 : 1.25
                 print("RATE \(now) target=\(rate) position=\(player.time.intValue)")
+                frameProbeStage(step % 2 == 0 ? 1 : 2)
                 player.rate = rate
                 step += 1
             }
@@ -68,6 +75,7 @@ final class Probe: UIResponder, UIApplicationDelegate {
                     print("ENGINE_PROBE_FAILED: playback did not advance"); fflush(stdout); exit(1)
                 }
                 print("ENGINE_PROBE_PASSED position=\(player.time.intValue) frames=\(stats.displayedPictures) lost=\(stats.lostPictures) audio=\(stats.playedAudioBuffers)")
+                print("DRAWABLE frames=\(frameProbeCount()) gaps_ms=\((0...2).map { Int(frameProbeGap(Int32($0)) * 1000) })")
                 fflush(stdout)
                 timer?.invalidate()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { exit(0) }
