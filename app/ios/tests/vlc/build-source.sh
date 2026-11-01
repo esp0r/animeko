@@ -46,6 +46,15 @@ edits = {
     'spushd $arch/lib/vlc/plugins': 'spushd $actual_arch/lib/vlc/plugins',
     '--disable-qt --disable-skins2': '--disable-qt --disable-skins2 --disable-ncurses',
 }
+simulator_plugin = r'''SIMULATORLDFLAGS+="\$(PROJECT_DIR)/libvlc/vlc/install-"$OSSTYLE"Simulator/$actual_arch/lib/vlc/plugins/$file "'''
+edits[simulator_plugin] = simulator_plugin + r'''
+            if [ -z "$DEVICEARCHS" ]; then
+                symbols=$(nm -g -arch $actual_arch install-"$OSSTYLE"Simulator/$actual_arch/lib/vlc/plugins/$file)
+                entryname=$(get_symbol "$symbols" _)
+                test -n "$entryname"
+                DEFINITIONS+="int $entryname (int (*)(void *, void *, int, ...), void *);\n"
+                BUILTINS+=" $entryname,\n"
+            fi'''
 for old, new in edits.items():
     assert s.count(old) == 1, (old, s.count(old))
     s = s.replace(old, new)
@@ -64,7 +73,7 @@ mkdir -p "$root/libvlc/vlc/extras/tools/build/share/aclocal"
 cp "$pkg_macro" "$root/libvlc/vlc/extras/tools/build/share/aclocal/pkg.m4"
 # The cached configure step checks this path to detect changed options.
 export THIS_SCRIPT_PATH="$root/buildMobileVLCKit-simulator.sh"
-bash buildMobileVLCKit-simulator.sh -a aarch64 -s -n -v
+bash -O xpg_echo buildMobileVLCKit-simulator.sh -a aarch64 -s -n -v
 xcodebuild archive -project MobileVLCKit.xcodeproj -scheme MobileVLCKit \
   -sdk iphonesimulator -configuration Release -archivePath build/source-simulator.xcarchive \
   ARCHS=arm64 ONLY_ACTIVE_ARCH=YES IPHONEOS_DEPLOYMENT_TARGET=16.0 \
