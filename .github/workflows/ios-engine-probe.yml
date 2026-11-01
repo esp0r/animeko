@@ -1,0 +1,28 @@
+name: iOS player engine comparison
+on:
+  workflow_dispatch:
+  push:
+    branches: [experiment/vlc4-rate]
+permissions:
+  contents: read
+jobs:
+  engine:
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ['3', '4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: cocoapods-engine-probe-${{ matrix.version }}
+      - name: Test rate transitions
+        run: bash app/ios/tests/engine-probe/run.sh ${{ matrix.version }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: engine-${{ matrix.version }}-probe
+          path: app/ios/tests/engine-probe/build/*.log
