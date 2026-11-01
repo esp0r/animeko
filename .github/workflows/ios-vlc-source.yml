@@ -14,7 +14,16 @@ concurrency:
   group: vlc-source-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  pcm-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify PCM continuity measurement
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined app/ios/tests/vlc/test_pcm_probe.c -o /tmp/pcm-probe
+          /tmp/pcm-probe
   source:
+    needs: pcm-probe
     runs-on: macos-15
     timeout-minutes: 180
     env:
@@ -23,6 +32,8 @@ jobs:
       VLC_RATE_TRACE: ${{ github.event_name == 'push' && '1' || inputs.trace && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
+      - name: Install compatible GNU Make
+        run: brew list --versions make >/dev/null || brew install make
       - uses: actions/cache/restore@v4
         with:
           path: ${{ env.SOURCE_ROOT }}

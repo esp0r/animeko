@@ -54,9 +54,11 @@ final class RateProbeDelegate: UIResponder, UIApplicationDelegate {
                 guard count > 200, player.positionMillis > 20000, player.phase == 3 else {
                     print("VLC_RATE_FAILED: playback did not advance through the transitions"); fflush(stdout); exit(1)
                 }
+                timer?.invalidate()
                 player.close()
                 fflush(stdout)
-                exit(0)
+                // Allow asynchronous audio shutdown to publish output continuity statistics.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { exit(0) }
             }
         }
         return true

@@ -1,0 +1,72 @@
+--- a/modules/audio_output/coreaudio_common.h
++++ b/modules/audio_output/coreaudio_common.h
+@@ -34,6 +34,7 @@
+ #import <AudioToolbox/AudioToolbox.h>
+ #import <os/lock.h>
+ #import <mach/mach_time.h>
++#include "animeko_pcm_probe.h"
+
+ #define STREAM_FORMAT_MSG(pre, sfm) \
+     pre "[%f][%4.4s][%u][%u][%u][%u][%u][%u]", \
+@@ -83,6 +84,7 @@
+     uint8_t             chan_table[AOUT_CHAN_MAX];
+     /* ca_TimeGet extra latency, in micro-seconds */
+     vlc_tick_t          i_dev_latency_us;
++    struct animeko_pcm_probe pcm_probe;
+ };
+
+ int ca_Open(audio_output_t *p_aout);
+--- a/modules/audio_output/coreaudio_common.c
++++ b/modules/audio_output/coreaudio_common.c
+@@ -145,6 +145,8 @@
+ ca_Render(audio_output_t *p_aout, uint32_t i_frames, uint64_t i_host_time,
+           uint8_t *p_output, size_t i_requested)
+ {
++    const uint8_t *probe_output = p_output;
++    const size_t probe_size = i_requested;
+     struct aout_sys_common *p_sys = (struct aout_sys_common *) p_aout->sys;
+
+     lock_lock(p_sys);
+@@ -238,11 +240,16 @@
+         memset(p_output, 0, i_requested);
+     }
+
++    animeko_pcm_observe(&p_sys->pcm_probe, probe_output, probe_size,
++                        HostTimeToTick(p_sys, i_host_time));
+     lock_unlock(p_sys);
+     return;
+
+ drop:
+     memset(p_output, 0, i_requested);
++    if (!p_sys->b_paused)
++        animeko_pcm_observe(&p_sys->pcm_probe, probe_output, probe_size,
++                            HostTimeToTick(p_sys, i_host_time));
+     lock_unlock(p_sys);
+ }
+
+@@ -428,6 +435,10 @@
+ {
+     struct aout_sys_common *p_sys = (struct aout_sys_common *) p_aout->sys;
+
++    p_sys->pcm_probe = (struct animeko_pcm_probe){
++        .rate = fmt->i_format == VLC_CODEC_FL32 && fmt->i_frame_length == 1 ? fmt->i_rate : 0,
++        .channels = fmt->i_bytes_per_frame / sizeof(float),
++    };
+     p_sys->i_underrun_size = 0;
+     p_sys->b_paused = false;
+     p_sys->i_render_host_time = p_sys->i_first_render_host_time = 0;
+@@ -471,6 +482,14 @@
+ ca_Uninitialize(audio_output_t *p_aout)
+ {
+     struct aout_sys_common *p_sys = (struct aout_sys_common *) p_aout->sys;
++    struct animeko_pcm_probe *probe = &p_sys->pcm_probe;
++    animeko_pcm_finish_run(probe);
++    msg_Warn(p_aout, "ANIMEKO_PCM rate=%u frames=%"PRIu64" audible=%"PRIu64" events=%u overflow=%u missing_host=%u",
++             probe->rate, probe->frames, probe->audible_frames, probe->count,
++             probe->overflow, probe->missing_host_time);
++    for (unsigned i = 0; i < probe->count; i++)
++        msg_Warn(p_aout, "ANIMEKO_PCM silence start_us=%"PRId64" frames=%"PRIu64"",
++                 probe->gaps[i].start_us, probe->gaps[i].frames);
+     ca_ClearOutBuffers(p_aout);
+     p_sys->i_out_max_size = 0;
+     p_sys->chans_to_reorder = 0;

@@ -22,14 +22,17 @@ if [ ! -f "$root/.official-patches-applied" ]; then
   git -C "$root/libvlc/vlc" -c user.name='Animeko CI' -c user.email='ci@localhost' am "$root"/libvlc/patches/*.patch
   git -C "$root/libvlc/vlc" rev-parse HEAD > "$root/.official-patches-applied"
 fi
-trace_patch="$script_dir/patches/rate-trace.patch"
-if git -C "$root/libvlc/vlc" apply --reverse --check "$trace_patch" 2>/dev/null; then
-  git -C "$root/libvlc/vlc" apply --reverse "$trace_patch"
-fi
-if [ "${VLC_RATE_TRACE:-0}" = 1 ]; then
-  git -C "$root/libvlc/vlc" apply --check "$trace_patch"
-  git -C "$root/libvlc/vlc" apply "$trace_patch"
-fi
+for name in rate-trace pcm-probe; do
+  trace_patch="$script_dir/patches/$name.patch"
+  if git -C "$root/libvlc/vlc" apply --reverse --check "$trace_patch" 2>/dev/null; then
+    git -C "$root/libvlc/vlc" apply --reverse "$trace_patch"
+  fi
+  if [ "${VLC_RATE_TRACE:-0}" = 1 ]; then
+    git -C "$root/libvlc/vlc" apply --check "$trace_patch"
+    git -C "$root/libvlc/vlc" apply "$trace_patch"
+  fi
+done
+cp "$script_dir/pcm_probe.h" "$root/libvlc/vlc/modules/audio_output/animeko_pcm_probe.h"
 # The upstream symbol collector assumes an arm64 build also has a device slice.
 # This job produces only an arm64 simulator slice, with the app's iOS minimum.
 git -C "$root" show "$kit:buildMobileVLCKit.sh" > "$root/buildMobileVLCKit-simulator.sh"
@@ -48,7 +51,11 @@ for old, new in edits.items():
 p.write_text(s)
 PY
 cd "$root"
-export VLC_PATH="$PATH"
+# GNU Make 4.4 provides the FIFO jobserver used by current Ninja builds.
+mkdir -p "$root/host-tools"
+ln -sf "$(command -v gmake)" "$root/host-tools/make"
+gmake --version
+export VLC_PATH="$root/host-tools:$PATH"
 bash buildMobileVLCKit-simulator.sh -a aarch64 -s -n -v
 xcodebuild archive -project MobileVLCKit.xcodeproj -scheme MobileVLCKit \
   -sdk iphonesimulator -configuration Release -archivePath build/source-simulator.xcarchive \
