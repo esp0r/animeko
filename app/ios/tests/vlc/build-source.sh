@@ -44,6 +44,7 @@ edits = {
     'SDK_MIN=9.0': 'SDK_MIN=16.0',
     'if [ "$1" = "x86_64" ];then': 'if [ "$1" = "x86_64" ] || { [ "$1" = "aarch64" ] && [ "$BUILD_DEVICE" = "no" ]; };then',
     'spushd $arch/lib/vlc/plugins': 'spushd $actual_arch/lib/vlc/plugins',
+    '--disable-qt --disable-skins2': '--disable-qt --disable-skins2 --disable-ncurses',
 }
 for old, new in edits.items():
     assert s.count(old) == 1, (old, s.count(old))
