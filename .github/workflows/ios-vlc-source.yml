@@ -20,6 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify PCM continuity measurement
         run: |
+          python3 -m unittest discover -s app/ios/tests/vlc -p test_analyze_pcm.py
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined app/ios/tests/vlc/test_pcm_probe.c -o /tmp/pcm-probe
           /tmp/pcm-probe
   source:

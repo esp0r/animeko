@@ -93,4 +93,7 @@ for codec in h264 hevc; do
     done
   done
 done
+if [ "${VLC_RATE_TRACE:-0}" = 1 ]; then
+  python3 analyze_pcm.py build
+fi
 python3 verify_rate.py build
