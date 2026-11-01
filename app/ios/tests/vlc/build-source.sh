@@ -56,6 +56,11 @@ mkdir -p "$root/host-tools"
 ln -sf "$(command -v gmake)" "$root/host-tools/make"
 gmake --version
 export VLC_PATH="$root/host-tools:$PATH"
+# Contrib's autoreconf searches the private tools prefix for pkg.m4.
+pkg_macro="$(brew --prefix)/share/aclocal/pkg.m4"
+test -f "$pkg_macro"
+mkdir -p "$root/libvlc/vlc/extras/tools/build/share/aclocal"
+cp "$pkg_macro" "$root/libvlc/vlc/extras/tools/build/share/aclocal/pkg.m4"
 bash buildMobileVLCKit-simulator.sh -a aarch64 -s -n -v
 xcodebuild archive -project MobileVLCKit.xcodeproj -scheme MobileVLCKit \
   -sdk iphonesimulator -configuration Release -archivePath build/source-simulator.xcarchive \

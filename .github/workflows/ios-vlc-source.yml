@@ -33,8 +33,8 @@ jobs:
       VLC_RATE_TRACE: ${{ github.event_name == 'push' && '1' || inputs.trace && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Install compatible GNU Make
-        run: brew list --versions make >/dev/null || brew install make
+      - name: Install compatible build tools
+        run: brew list --versions make pkgconf >/dev/null || brew install make pkgconf
       - uses: actions/cache/restore@v4
         with:
           path: ${{ env.SOURCE_ROOT }}
