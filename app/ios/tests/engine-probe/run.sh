@@ -28,14 +28,18 @@ device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d
 xcrun simctl boot "$device" || true
 xcrun simctl bootstatus "$device" -b
 modes=auto
-if [ "$engine" = 4 ]; then modes="audio monotonic"; fi
+if [ "$engine" = 4 ]; then modes="audio monotonic legacy-audio legacy-monotonic"; fi
+cp ../vlc/rate-fixture.mkv ../vlc/rate-hevc-fixture.mkv "$app/"
+codesign --force --sign - "$app"
+xcrun simctl install "$device" "$app"
 for mode in $modes; do
  for codec in h264 hevc; do
-  if [ "$codec" = h264 ]; then fixture=rate-fixture; else fixture=rate-hevc-fixture; fi
-  cp "../vlc/$fixture.mkv" "$app/fixture.mkv"
-  codesign --force --sign - "$app"
-  xcrun simctl install "$device" "$app"
-  if [ "$engine" = 4 ]; then export SIMCTL_CHILD_VLC_PROBE_CLOCK="$mode"; fi
+  export SIMCTL_CHILD_VLC_PROBE_CODEC="$codec"
+  export SIMCTL_CHILD_VLC_PROBE_LEGACY=0
+  if [ "$engine" = 4 ]; then
+    export SIMCTL_CHILD_VLC_PROBE_CLOCK="${mode#legacy-}"
+    if [[ "$mode" = legacy-* ]]; then export SIMCTL_CHILD_VLC_PROBE_LEGACY=1; fi
+  fi
   xcrun simctl launch --terminate-running-process --console "$device" org.animeko.engineprobe > "build/$codec-$mode.log" 2>&1
   cat "build/$codec-$mode.log"
   grep -q ENGINE_PROBE_PASSED "build/$codec-$mode.log"

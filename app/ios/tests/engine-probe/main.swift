@@ -24,7 +24,12 @@ final class ProbeLogger: NSObject, VLCLogging {
 
 final class Probe: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
-    let player = VLCMediaPlayer(options: ProcessInfo.processInfo.environment["VLC_PROBE_CLOCK"].map { ["--clock-master=\($0)"] } ?? [])
+    let player = VLCMediaPlayer(options: {
+        let environment = ProcessInfo.processInfo.environment
+        var options = environment["VLC_PROBE_CLOCK"].map { ["--clock-master=\($0)"] } ?? []
+        if environment["VLC_PROBE_LEGACY"] == "1" { options.append("--force-darwin-legacy-display") }
+        return options
+    }())
     let logger = ProbeLogger()
     var timer: Timer?
     var start = ProcessInfo.processInfo.systemUptime
@@ -43,7 +48,8 @@ final class Probe: UIResponder, UIApplicationDelegate {
         player.libraryInstance.loggers = [logger]
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
-        let url = Bundle.main.url(forResource: "fixture", withExtension: "mkv")!
+        let fixture = ProcessInfo.processInfo.environment["VLC_PROBE_CODEC"] == "hevc" ? "rate-hevc-fixture" : "rate-fixture"
+        let url = Bundle.main.url(forResource: fixture, withExtension: "mkv")!
         #if canImport(MobileVLCKit)
         let media = VLCMedia(url: url)
         #else
