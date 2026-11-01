@@ -73,6 +73,8 @@ jobs:
 
       - uses: android-actions/setup-android@v3
         if: inputs.task != 'check-runner'
+        with:
+          packages: 'platform-tools'
 
       - name: Configure iOS and memory limits for the 16 GB Mac
         if: inputs.task != 'check-runner'
