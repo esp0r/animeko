@@ -3,3 +3,4 @@
 Pods/
 Frameworks/*
 !Frameworks/.gitkeep
+__pycache__/
