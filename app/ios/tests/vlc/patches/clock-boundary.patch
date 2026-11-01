@@ -116,7 +116,7 @@
 +            : ClockStreamToSystem( cl, *pi_ts1 + AvgGet( &cl->drift ) ) + i_ts_delay;
      }
 
-@@ -464,4 +505,10 @@
+@@ -464,4 +505,29 @@
   * input_clock_GetRate: Return current rate
   *****************************************************************************/
 +int input_clock_ConvertTS( vlc_object_t *obj, input_clock_t *cl, int *rate,
@@ -125,15 +125,34 @@
 +    return input_clock_ConvertMediaTS( obj, cl, rate, ts0, ts1, bound, UNKNOWN_ES, 0 );
 +}
 +
++bool input_clock_GetRateBoundary( input_clock_t *cl, vlc_tick_t date,
++    int old_rate, int new_rate, vlc_tick_t *boundary )
++{
++    bool found = false;
++    vlc_mutex_lock( &cl->lock );
++    for( size_t i = 1; i < cl->presentation.count; ++i )
++    {
++        const animeko_rate_segment *s = &cl->presentation.segments[i];
++        if( s->system <= date && s->rate == new_rate &&
++            cl->presentation.segments[i - 1].rate == old_rate )
++        {
++            *boundary = s->system;
++            found = true;
++        }
++    }
++    vlc_mutex_unlock( &cl->lock );
++    return found;
++}
++
  int input_clock_GetRate( input_clock_t *cl )
  {
-@@ -520,4 +567,5 @@
+@@ -520,4 +586,5 @@
      cl->ref.i_system += i_offset;
      cl->last.i_system += i_offset;
 +    animeko_rate_shift( &cl->presentation, i_offset );
 
      vlc_mutex_unlock( &cl->lock );
-@@ -565,5 +613,9 @@
+@@ -565,5 +632,9 @@
       */
      if( cl->i_pts_delay < i_pts_delay )
 +    {
@@ -145,20 +164,146 @@
      /* */
 --- a/src/input/clock.h
 +++ b/src/input/clock.h
-@@ -116,4 +116,6 @@
+@@ -116,4 +116,8 @@
   */
  int input_clock_GetRate( input_clock_t * );
 +int input_clock_ConvertMediaTS( vlc_object_t *, input_clock_t *, int *,
 +    vlc_tick_t *, vlc_tick_t *, vlc_tick_t, int category, vlc_tick_t duration );
++bool input_clock_GetRateBoundary( input_clock_t *, vlc_tick_t date,
++    int old_rate, int new_rate, vlc_tick_t *boundary );
 
  /**
 --- a/src/input/decoder.c
 +++ b/src/input/decoder.c
-@@ -803,5 +803,6 @@
-         if( i_ts_bound != INT64_MAX )
+@@ -804,3 +804,4 @@
              i_ts_bound += i_es_delay;
 -        if( input_clock_ConvertTS( VLC_OBJECT(p_dec), p_clock, &i_rate, pi_ts0, pi_ts1, i_ts_bound ) ) {
 +        if( input_clock_ConvertMediaTS( VLC_OBJECT(p_dec), p_clock, &i_rate, pi_ts0, pi_ts1,
 +            i_ts_bound, p_dec->fmt_in.i_cat, pi_duration ? *pi_duration : 0 ) ) {
              const char *psz_name = module_get_name( p_dec->p_module, false );
-             if( pi_ts1 != NULL )
+@@ -1076,3 +1077,8 @@
+             /* Be sure to not display old picture after our own */
+-            vout_Flush( p_vout, p_picture->date );
++            vlc_tick_t boundary;
++            if( !b_first_after_wait && p_owner->p_clock && input_clock_GetRateBoundary( p_owner->p_clock,
++                p_picture->date, p_owner->i_last_rate, i_rate, &boundary ) )
++                vout_Retime( p_vout, boundary, p_owner->i_last_rate, i_rate );
++            else
++                vout_Flush( p_vout, p_picture->date );
+             p_owner->i_last_rate = i_rate;
+--- a/src/video_output/vout_control.h
++++ b/src/video_output/vout_control.h
+@@ -50,4 +50,5 @@
+  */
+ void vout_Flush( vout_thread_t *p_vout, vlc_tick_t i_date );
++void vout_Retime( vout_thread_t *, vlc_tick_t boundary, int old_rate, int new_rate );
+
+ /*
+--- a/src/video_output/control.h
++++ b/src/video_output/control.h
+@@ -51,4 +51,5 @@
+     VOUT_CONTROL_PAUSE,
+     VOUT_CONTROL_FLUSH,                 /* time */
++    VOUT_CONTROL_RETIME,
+     VOUT_CONTROL_STEP,                  /* time_ptr */
+
+@@ -71,4 +72,8 @@
+     union {
+         bool    boolean;
++        struct {
++            vlc_tick_t boundary;
++            int old_rate, new_rate;
++        } retime;
+         vlc_tick_t time;
+         vlc_tick_t *time_ptr;
+--- a/include/vlc_picture_fifo.h
++++ b/include/vlc_picture_fifo.h
+@@ -84,4 +84,5 @@
+  */
+ VLC_API void picture_fifo_OffsetDate( picture_fifo_t *, vlc_tick_t delta );
++unsigned picture_fifo_Retime( picture_fifo_t *, vlc_tick_t boundary, int old_rate, int new_rate );
+
+
+--- a/src/misc/picture_fifo.c
++++ b/src/misc/picture_fifo.c
+@@ -33,4 +33,5 @@
+
+ #include <vlc_common.h>
++#include "../input/animeko_rate_timeline.h"
+ #include <vlc_picture_fifo.h>
+
+@@ -140,4 +141,16 @@
+     vlc_mutex_unlock(&fifo->lock);
+ }
++unsigned picture_fifo_Retime(picture_fifo_t *fifo, vlc_tick_t boundary, int old_rate, int new_rate)
++{
++    unsigned count = 0;
++    vlc_mutex_lock(&fifo->lock);
++    for (picture_t *picture = fifo->first; picture; picture = picture->p_next) {
++        if (picture->date >= boundary) ++count;
++        picture->date = animeko_rate_retime(picture->date, boundary, old_rate, new_rate);
++    }
++    vlc_mutex_unlock(&fifo->lock);
++    return count;
++}
++
+ void picture_fifo_Delete(picture_fifo_t *fifo)
+ {
+--- a/src/video_output/video_output.c
++++ b/src/video_output/video_output.c
+@@ -36,4 +36,5 @@
+
+ #include <vlc_common.h>
++#include "../input/animeko_rate_timeline.h"
+
+ #include <stdlib.h>                                                /* free() */
+@@ -327,4 +328,16 @@
+ {
+     vout_statistic_GetReset( &vout->p->statistic, displayed, lost );
++}
++
++void vout_Retime(vout_thread_t *vout, vlc_tick_t boundary, int old_rate, int new_rate)
++{
++    vout_control_cmd_t cmd;
++    vout_control_cmd_Init(&cmd, VOUT_CONTROL_RETIME);
++    cmd.u.retime.boundary = boundary;
++    cmd.u.retime.old_rate = old_rate;
++    cmd.u.retime.new_rate = new_rate;
++    vout_control_Push(&vout->p->control, &cmd);
++    /* The decoder submits new-mapping pictures only after this barrier. */
++    vout_control_WaitEmpty(&vout->p->control);
+ }
+
+@@ -1317,4 +1330,24 @@
+ }
+
++static void ThreadRetime(vout_thread_t *vout, vlc_tick_t boundary, int old_rate, int new_rate)
++{
++    unsigned count = picture_fifo_Retime(vout->p->decoder_fifo, boundary, old_rate, new_rate);
++    picture_t *pictures[] = {vout->p->displayed.current, vout->p->displayed.next,
++                            vout->p->displayed.decoded};
++    for (size_t i = 0; i < sizeof(pictures) / sizeof(pictures[0]); ++i) {
++        bool duplicate = false;
++        for (size_t j = 0; j < i; ++j) duplicate |= pictures[i] == pictures[j];
++        if (pictures[i] && !duplicate) {
++            if (pictures[i]->date >= boundary) ++count;
++            pictures[i]->date = animeko_rate_retime(pictures[i]->date, boundary, old_rate, new_rate);
++        }
++    }
++    vout->p->displayed.timestamp = animeko_rate_retime(vout->p->displayed.timestamp, boundary, old_rate, new_rate);
++    vout->p->step.timestamp = VLC_TICK_INVALID;
++    vout->p->step.last = VLC_TICK_INVALID;
++    msg_Warn(vout, "ANIMEKO_VIDEO_RETIME now=%"PRId64" boundary=%"PRId64" old=%d new=%d queued=%u",
++             mdate(), boundary, old_rate, new_rate, count);
++}
++
+ static void ThreadFlush(vout_thread_t *vout, bool below, vlc_tick_t date)
+ {
+@@ -1735,4 +1768,7 @@
+         ThreadChangePause(vout, cmd.u.pause.is_on, cmd.u.pause.date);
+         break;
++    case VOUT_CONTROL_RETIME:
++        ThreadRetime(vout, cmd.u.retime.boundary, cmd.u.retime.old_rate, cmd.u.retime.new_rate);
++        break;
+     case VOUT_CONTROL_FLUSH:
+         ThreadFlush(vout, false, cmd.u.time);

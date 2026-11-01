@@ -53,6 +53,11 @@ static inline void animeko_rate_shift(animeko_rate_timeline *t, int64_t offset)
 {
     for (size_t i = 0; i < t->count; ++i) t->segments[i].system += offset;
 }
+static inline int64_t animeko_rate_retime(int64_t date, int64_t boundary,
+                                        int old_rate, int new_rate)
+{
+    return date < boundary ? date : boundary + (date - boundary) * new_rate / old_rate;
+}
 /* Retain the segment containing the oldest timestamp still being decoded. */
 static inline void animeko_rate_prune(animeko_rate_timeline *t, int64_t before)
 {

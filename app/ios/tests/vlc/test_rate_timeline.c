@@ -3,9 +3,18 @@
 
 int main(void)
 {
+    assert(animeko_rate_retime(999, 1000, 800, 400) == 999);
+    assert(animeko_rate_retime(1000, 1000, 800, 400) == 1000);
+    assert(animeko_rate_retime(1200, 1000, 800, 400) == 1100);
+    assert(animeko_rate_retime(1200, 1000, 400, 800) == 1400);
     animeko_rate_timeline t = {0};
     animeko_rate_init(&t, 0, 1000000, 800);
     assert(animeko_rate_append(&t, 4000000, 400));
+    for (int64_t stream = 3800000; stream <= 4200000; stream += 10000) {
+        int64_t old_video_date = 1000000 + stream * 800 / 1000;
+        assert(animeko_rate_retime(old_video_date, 4200000, 800, 400)
+               == animeko_rate_map(&t, stream));
+    }
     assert(animeko_rate_map(&t, 3990000) == 4192000);
     assert(animeko_rate_map(&t, 4000000) == 4200000);
     assert(animeko_rate_map(&t, 4010000) == 4204000);
