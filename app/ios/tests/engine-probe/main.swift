@@ -64,7 +64,7 @@ final class Probe: UIResponder, UIApplicationDelegate {
             }
             if step == 6 && now - ready >= 16 {
                 let stats = media.statistics
-                guard player.time.intValue > 20000, stats.displayedPictures > 200, abs(player.rate - 1.25) < 0.01 else {
+                guard player.time.intValue > 20000, stats.displayedPictures > 200, stats.playedAudioBuffers > 100, abs(player.rate - 1.25) < 0.01 else {
                     print("ENGINE_PROBE_FAILED: playback did not advance"); fflush(stdout); exit(1)
                 }
                 print("ENGINE_PROBE_PASSED position=\(player.time.intValue) frames=\(stats.displayedPictures) lost=\(stats.lostPictures) audio=\(stats.playedAudioBuffers)")

@@ -5,7 +5,7 @@ engine=${1:?engine required}
 if [ "$engine" = 3 ]; then pod=MobileVLCKit; version=3.7.4; else pod=VLCKit; version=4.0.0a25; fi
 printf "install! 'cocoapods', :integrate_targets => false\nplatform :ios, '16.0'\ntarget 'EngineProbe' do\n  pod '%s', '%s'\nend\n" "$pod" "$version" > Podfile
 pod install
-framework=$(find "Pods/$pod" -name "$pod.framework" -path '*simulator*' | head -1)
+framework=$(find "Pods/$pod" -name "$pod.framework" -path '*/ios-*simulator/*' | head -1)
 test -n "$framework"
 app="$PWD/build/EngineProbe.app"
 mkdir -p "$app/Frameworks"
