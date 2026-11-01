@@ -31,6 +31,7 @@ jobs:
           path: |
             app/ios/tests/vlc/build/native-vlc.log
             app/ios/tests/vlc/build/rate-*.log
+            app/ios/tests/vlc/build/rate-summary.json
             app/ios/tests/vlc/build/chinese-subtitles*.png
   native:
     runs-on: macos-15

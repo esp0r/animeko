@@ -118,3 +118,17 @@ Each source in the danmaku settings has a direct **Delay** action. It uses the
 existing source-specific timing dialog: positive offsets delay comments,
 negative offsets advance them, within +/-30 seconds. These offsets belong to
 the current playback session, independently of the persistent subtitle size.
+
+
+### iOS playback latency
+
+VLC uses a 100 ms input cache for file URLs and loopback playback, including the
+BT HTTP adapter. Remote URLs retain 1500 ms to absorb network jitter. This cache
+controls decoded playback lead time, independently of torrent piece storage and
+prefetch. A shorter local queue limits audio-buffer flushing and inserted silence
+on rate changes; it does not guarantee gapless rate switching in VLC 3.
+
+The native harness compares three 1.25x / 2.5x cycles at the local default and a
+500 ms control, over both file and loopback HTTP, using H.264 and 1080p 10-bit HEVC
+synthetic fixtures. It records drawable presentation gaps and audio sync events.
+These simulator measurements do not replace hardware playback validation.

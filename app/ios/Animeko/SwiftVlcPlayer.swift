@@ -28,9 +28,6 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     private var aspectString: UnsafeMutablePointer<CChar>?
     private var cropString: UnsafeMutablePointer<CChar>?
     private var subtitleRefresh: DispatchWorkItem?
-    #if VLC_TESTING
-    private var rateRevision = 0
-    #endif
 
     // FreeType needs a readable font file as well as a CoreText family match.
     // Bundling the font keeps CJK captions independent of system font storage.
@@ -129,21 +126,26 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     var audioTracks: [IosVlcTrack] { tracks(player.audioTrackIndexes, player.audioTrackNames) }
     var subtitleTracks: [IosVlcTrack] { tracks(player.videoSubTitlesIndexes, player.videoSubTitlesNames) }
 
+    /// VLC schedules decoded audio ahead by the input cache duration. A short
+    /// local queue limits silence insertion and flushing when the rate changes.
+    /// Remote streams retain buffering for network jitter.
+    static func playbackCacheMillis(for url: URL) -> Int {
+        let local = url.isFileURL || ["127.0.0.1", "::1", "[::1]", "localhost"].contains(url.host?.lowercased() ?? "")
+        return local ? 100 : 1500
+    }
+
     func open(uri: String, headers: [String: String], startPositionMillis: Int64) {
         stop()
         guard let url = URL(string: uri) else { return }
         let media = VLCMedia(url: url)
+        let cache = Self.playbackCacheMillis(for: url)
         #if VLC_TESTING
-        let testCache = ProcessInfo.processInfo.environment["VLC_TEST_CACHE"] ?? "1500"
+        let testCache = ProcessInfo.processInfo.environment["VLC_TEST_CACHE"].flatMap { Int($0) } ?? cache
         media.addOption(":network-caching=\(testCache)")
+        media.addOption(":file-caching=\(testCache)")
         #else
-        media.addOption(":network-caching=1500")
-        #endif
-        #if VLC_TESTING
-        let fileCache = ProcessInfo.processInfo.environment["VLC_TEST_CACHE"] ?? "500"
-        media.addOption(":file-caching=\(fileCache)")
-        #else
-        media.addOption(":file-caching=500")
+        media.addOption(":network-caching=\(cache)")
+        media.addOption(":file-caching=\(cache)")
         #endif
         if startPositionMillis > 0 {
             media.addOption(":start-time=\(Double(startPositionMillis) / 1000)")
@@ -255,26 +257,7 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         diagnosticSnapshot("rate request=\(rate) native=\(player.rate)")
         let began = ProcessInfo.processInfo.systemUptime
         #endif
-        #if VLC_TESTING
-        let ramp = Double(ProcessInfo.processInfo.environment["VLC_TEST_RATE_RAMP"] ?? "0") ?? 0
-        rateRevision += 1
-        let revision = rateRevision
-        let loadGeneration = generation
-        let initial = player.rate
-        if ramp > 0 && player.isPlaying && player.time.intValue > 0 {
-            let steps = max(1, Int(ramp / 0.025))
-            for step in 1...steps {
-                DispatchQueue.main.asyncAfter(deadline: .now() + ramp * Double(step) / Double(steps)) { [weak self] in
-                    guard let self, self.rateRevision == revision, self.generation == loadGeneration else { return }
-                    self.player.rate = initial + (rate - initial) * Float(step) / Float(steps)
-                }
-            }
-        } else {
-            player.rate = rate
-        }
-        #else
         player.rate = rate
-        #endif
         #if DEBUG || VLC_TESTING
         diagnosticSnapshot("rate returned elapsedMs=\((ProcessInfo.processInfo.systemUptime - began) * 1000)")
         let load = generation

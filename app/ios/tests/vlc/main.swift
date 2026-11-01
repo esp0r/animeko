@@ -25,6 +25,12 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
         let fontURL = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL
         require(fontURL?.lastPathComponent == "NotoSansCJKsc-Regular.otf", "CoreText did not select bundled font")
         let url = Bundle.main.url(forResource: "fixture", withExtension: "mkv")!
+        for uri in ["file:///tmp/video.mkv", "http://127.0.0.1:1234/video", "http://[::1]:1234/video"] {
+            require(SwiftVlcPlayer.playbackCacheMillis(for: URL(string: uri)!) == 100, "local playback cache")
+        }
+        for uri in ["https://media.example/video.mkv", "http://127.0.0.1.example/video", "http://192.168.1.2/video"] {
+            require(SwiftVlcPlayer.playbackCacheMillis(for: URL(string: uri)!) == 1500, "remote playback cache")
+        }
         player.setSubtitleScale(scale: 1)
         player.open(uri: url.absoluteString, headers: [:], startPositionMillis: 0)
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [self] _ in
