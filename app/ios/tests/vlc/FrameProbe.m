@@ -1,8 +1,10 @@
 #import <OpenGLES/EAGL.h>
+#import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 #import <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 // Test-only instrumentation of actual drawable presentation, not batched VLC statistics.
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
@@ -33,15 +35,20 @@ void frameProbeMark(int rate) {
     pthread_mutex_unlock(&lock);
 }
 void frameProbeDump(void) {
+    // Console stdout and VLC stderr can be interleaved in the middle of a record.
+    NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents/frame-presentations.log"];
+    FILE *output = fopen(path.fileSystemRepresentation, "w");
+    if (!output) abort();
     pthread_mutex_lock(&lock);
-    printf("ANIMEKO_FRAMES count=%d overflow=%d requests=%d request_overflow=%d\n",
+    fprintf(output, "ANIMEKO_FRAMES count=%d overflow=%d requests=%d request_overflow=%d\n",
         frames, frames > 16384 ? frames - 16384 : 0, requestCount, requestOverflow);
     for (int i = 0; i < requestCount; ++i)
-        printf("ANIMEKO_FRAME_RATE at_us=%.0f target_milli=%d\n", requests[i] * 1000000, requestRates[i]);
+        fprintf(output, "ANIMEKO_FRAME_RATE at_us=%.0f target_milli=%d\n", requests[i] * 1000000, requestRates[i]);
     for (int i = 0; i < frames && i < 16384; ++i)
-        printf("ANIMEKO_FRAME at_us=%.0f\n", presentations[i] * 1000000);
+        fprintf(output, "ANIMEKO_FRAME at_us=%.0f\n", presentations[i] * 1000000);
     pthread_mutex_unlock(&lock);
-    fflush(stdout);
+    int failed = ferror(output);
+    if (fclose(output) != 0 || failed) abort();
 }
 void frameProbeInstall(void) {
     Method method = class_getInstanceMethod([EAGLContext class], @selector(presentRenderbuffer:));

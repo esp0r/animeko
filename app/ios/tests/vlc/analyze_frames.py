@@ -41,6 +41,6 @@ if __name__ == "__main__":
         for transport in ("file", "http"):
             for cache in ("default", "500"):
                 case = f"{codec}-{transport}-{cache}"
-                results[case] = analyze((root / f"rate-{case}.log").read_text())
+                results[case] = analyze((root / f"rate-{case}-frames.log").read_text())
     (root / "frame-summary.json").write_text(json.dumps(results, indent=2) + "\n")
     print(json.dumps(results, indent=2))

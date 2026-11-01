@@ -81,6 +81,7 @@ for codec in h264 hevc; do
   for transport in file http; do
     for cache in default 500; do
       name="$codec-$transport-$cache"
+      rm -f "$data/Documents/frame-presentations.log"
       SIMCTL_CHILD_VLC_RATE_PROBE=1 SIMCTL_CHILD_VLC_TEST_CACHE="$cache" SIMCTL_CHILD_VLC_TEST_TRANSPORT="$transport" SIMCTL_CHILD_VLC_TEST_CODEC="$codec" \
         xcrun simctl launch --terminate-running-process --console "$device" org.animeko.vlctest > "build/rate-$name.log" 2>&1
       grep 'VLC_RATE_' "build/rate-$name.log"
@@ -88,6 +89,7 @@ for codec in h264 hevc; do
         grep -q 'ANIMEKO_PCM rate=' "build/rate-$name.log"
       fi
       cp "$data/Library/Caches/animeko-player-diagnostics.log" "build/rate-$name-diagnostics.log"
+      cp "$data/Documents/frame-presentations.log" "build/rate-$name-frames.log"
       test "$(grep -c 'rate request=2.5' "build/rate-$name-diagnostics.log")" -eq 3
       test "$(grep -c 'rate request=1.25' "build/rate-$name-diagnostics.log")" -eq 4
     done
