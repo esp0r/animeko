@@ -1,0 +1,100 @@
+--- a/src/input/clock.c
++++ b/src/input/clock.c
+@@ -34,6 +34,7 @@
+ #include <vlc_input.h>
+ #include "clock.h"
+ #include <assert.h>
++#include <stdio.h>
+
+ /* TODO:
+  * - clean up locking once clock code is stable
+@@ -348,6 +349,10 @@
+ {
+     vlc_mutex_lock( &cl->lock );
+
++    fprintf(stderr, "ANIMEKO_CLOCK now=%"PRId64" old=%d new=%d ref_stream=%"PRId64" ref_system=%"PRId64" last_stream=%"PRId64" last_system=%"PRId64" pts_delay=%"PRId64" buffering=%"PRId64" max_ts=%"PRId64"\n",
++            mdate(), cl->i_rate, i_rate, cl->ref.i_stream, cl->ref.i_system,
++            cl->last.i_stream, cl->last.i_system, cl->i_pts_delay,
++            cl->i_buffering_duration, cl->i_ts_max);
+     if( cl->b_has_reference )
+     {
+         /* Move the reference point (as if we were playing at the new rate
+--- a/src/audio_output/aout_internal.h
++++ b/src/audio_output/aout_internal.h
+@@ -81,6 +81,7 @@
+         unsigned resamp_start_drift; /**< Resampler drift absolute value */
+         int resamp_type; /**< Resampler mode (FIXME: redundant / resampling) */
+         bool discontinuity;
++        int diagnostic_rate;
+     } sync;
+
+     int initial_stereo_mode; /**< Initial stereo mode set by options */
+--- a/src/audio_output/dec.c
++++ b/src/audio_output/dec.c
+@@ -110,6 +110,7 @@
+     owner->sync.end = VLC_TICK_INVALID;
+     owner->sync.resamp_type = AOUT_RESAMPLING_NONE;
+     owner->sync.discontinuity = true;
++    owner->sync.diagnostic_rate = 0;
+     aout_OutputUnlock (p_aout);
+
+     atomic_init (&owner->buffers_lost, 0);
+@@ -394,9 +395,22 @@
+         vlc_mutex_unlock (&owner->vp.lock);
+     }
+
++    const bool diagnostic_rate_change = owner->sync.diagnostic_rate != input_rate;
++    if (diagnostic_rate_change) {
++        vlc_tick_t queued = VLC_TICK_INVALID;
++        aout_OutputTimeGet(aout, &queued);
++        msg_Warn(aout, "ANIMEKO_AUDIO rate old=%d new=%d now=%"PRId64" pts=%"PRId64" end=%"PRId64" queued=%"PRId64" samples=%u",
++                 owner->sync.diagnostic_rate, input_rate, mdate(), block->i_pts,
++                 owner->sync.end, queued, block->i_nb_samples);
++        owner->sync.diagnostic_rate = input_rate;
++    }
+     block = aout_FiltersPlay (owner->filters, block, input_rate);
+     if (block == NULL)
+         goto lost;
++
++    if (diagnostic_rate_change)
++        msg_Warn(aout, "ANIMEKO_AUDIO filtered now=%"PRId64" pts=%"PRId64" length=%"PRId64" samples=%u",
++                 mdate(), block->i_pts, block->i_length, block->i_nb_samples);
+
+     /* Software volume */
+     aout_volume_Amplify (owner->volume, block);
+--- a/src/input/decoder.c
++++ b/src/input/decoder.c
+@@ -1052,6 +1052,7 @@
+
+     const bool b_dated = p_picture->date > VLC_TICK_INVALID;
+     int i_rate = INPUT_RATE_DEFAULT;
++    const vlc_tick_t diagnostic_video_pts = p_picture->date;
+     DecoderFixTs( p_dec, &p_picture->date, NULL, NULL,
+                   &i_rate, DECODER_BOGUS_VIDEO_DELAY );
+
+@@ -1073,6 +1074,8 @@
+     {
+         if( i_rate != p_owner->i_last_rate || b_first_after_wait )
+         {
++            msg_Warn(p_dec, "ANIMEKO_VIDEO rate old=%d new=%d now=%"PRId64" stream=%"PRId64" scheduled=%"PRId64"",
++                     p_owner->i_last_rate, i_rate, mdate(), diagnostic_video_pts, p_picture->date);
+             /* Be sure to not display old picture after our own */
+             vout_Flush( p_vout, p_picture->date );
+             p_owner->i_last_rate = i_rate;
+@@ -1181,10 +1184,16 @@
+     int i_rate = INPUT_RATE_DEFAULT;
+
+     DecoderWaitUnblock( p_dec );
++    const vlc_tick_t diagnostic_audio_pts = p_audio->i_pts;
+     DecoderFixTs( p_dec, &p_audio->i_pts, NULL, &p_audio->i_length,
+                   &i_rate, AOUT_MAX_ADVANCE_TIME );
+     vlc_mutex_unlock( &p_owner->lock );
+
++    if (i_rate != p_owner->i_last_rate) {
++        msg_Warn(p_dec, "ANIMEKO_DECODER rate old=%d new=%d now=%"PRId64" stream=%"PRId64" scheduled=%"PRId64"",
++                 p_owner->i_last_rate, i_rate, mdate(), diagnostic_audio_pts, p_audio->i_pts);
++        p_owner->i_last_rate = i_rate;
++    }
+     audio_output_t *p_aout = p_owner->p_aout;
+
+     if( p_aout != NULL && p_audio->i_pts > VLC_TICK_INVALID

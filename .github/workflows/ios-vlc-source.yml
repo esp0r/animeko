@@ -1,6 +1,11 @@
 name: iOS VLC source synchronization tests
 on:
   workflow_dispatch:
+    inputs:
+      trace:
+        description: Record native clock and queue rate boundaries
+        type: boolean
+        default: true
   push:
     branches: [experiment/vlc3-clock]
 permissions:
@@ -15,6 +20,7 @@ jobs:
     env:
       SOURCE_ROOT: ${{ github.workspace }}/.vlc-source
       MAKE_JOBS: '3'
+      VLC_RATE_TRACE: ${{ github.event_name == 'push' && '1' || inputs.trace && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache/restore@v4
