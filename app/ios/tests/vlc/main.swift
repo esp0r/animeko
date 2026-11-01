@@ -39,7 +39,7 @@ final class TestDelegate: UIResponder, UIApplicationDelegate {
             require(tick < 1800, "timed out at step \(step), phase \(player.phase)")
             require(player.phase != 6, "decoder error")
             switch step {
-            case 0 where player.phase == 3 && player.positionMillis > 1200:
+            case 0 where player.phase == 3 && player.positionMillis > 2500:
                 require(player.videoWidth == 640 && player.videoHeight == 360, "video dimensions")
                 require(player.durationMillis >= 7500, "duration")
                 require(!player.audioTracks.isEmpty, "AAC track missing")
