@@ -74,10 +74,10 @@ grep -q VLC_TEST_PASSED build/native-vlc.log
 python3 -m http.server 18765 --bind 127.0.0.1 > build/rate-http.log 2>&1 &
 http_pid=$!
 trap 'kill "$http_pid" 2>/dev/null || true' EXIT
-for transport in file http; do
-  for cache in 1500 500 100 50; do
-    name="$transport-$cache"
-    SIMCTL_CHILD_VLC_RATE_PROBE=1 SIMCTL_CHILD_VLC_TEST_CACHE="$cache" SIMCTL_CHILD_VLC_TEST_TRANSPORT="$transport" \
+for cache in 500 100; do
+  for ramp in 0 0.2 0.4; do
+    name="file-$cache-ramp-$ramp"
+    SIMCTL_CHILD_VLC_RATE_PROBE=1 SIMCTL_CHILD_VLC_TEST_CACHE="$cache" SIMCTL_CHILD_VLC_TEST_TRANSPORT=file SIMCTL_CHILD_VLC_TEST_RATE_RAMP="$ramp" \
       xcrun simctl launch --terminate-running-process --console "$device" org.animeko.vlctest > "build/rate-$name.log" 2>&1
     grep 'VLC_RATE_' "build/rate-$name.log"
     cp "$data/Library/Caches/animeko-player-diagnostics.log" "build/rate-$name-diagnostics.log"

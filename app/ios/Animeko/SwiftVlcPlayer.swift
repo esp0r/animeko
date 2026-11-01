@@ -28,6 +28,9 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
     private var aspectString: UnsafeMutablePointer<CChar>?
     private var cropString: UnsafeMutablePointer<CChar>?
     private var subtitleRefresh: DispatchWorkItem?
+    #if VLC_TESTING
+    private var rateRevision = 0
+    #endif
 
     // FreeType needs a readable font file as well as a CoreText family match.
     // Bundling the font keeps CJK captions independent of system font storage.
@@ -252,7 +255,26 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         diagnosticSnapshot("rate request=\(rate) native=\(player.rate)")
         let began = ProcessInfo.processInfo.systemUptime
         #endif
+        #if VLC_TESTING
+        let ramp = Double(ProcessInfo.processInfo.environment["VLC_TEST_RATE_RAMP"] ?? "0") ?? 0
+        rateRevision += 1
+        let revision = rateRevision
+        let loadGeneration = generation
+        let initial = player.rate
+        if ramp > 0 && player.isPlaying && player.time.intValue > 0 {
+            let steps = max(1, Int(ramp / 0.025))
+            for step in 1...steps {
+                DispatchQueue.main.asyncAfter(deadline: .now() + ramp * Double(step) / Double(steps)) { [weak self] in
+                    guard let self, self.rateRevision == revision, self.generation == loadGeneration else { return }
+                    self.player.rate = initial + (rate - initial) * Float(step) / Float(steps)
+                }
+            }
+        } else {
+            player.rate = rate
+        }
+        #else
         player.rate = rate
+        #endif
         #if DEBUG || VLC_TESTING
         diagnosticSnapshot("rate returned elapsedMs=\((ProcessInfo.processInfo.systemUptime - began) * 1000)")
         let load = generation
