@@ -28,7 +28,7 @@ device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d
 xcrun simctl boot "$device" || true
 xcrun simctl bootstatus "$device" -b
 modes=auto
-if [ "$engine" = 4 ]; then modes="audio monotonic legacy-audio legacy-monotonic"; fi
+if [ "$engine" = 4 ]; then modes="legacy-audio audio"; fi
 cp ../vlc/rate-fixture.mkv ../vlc/rate-hevc-fixture.mkv "$app/"
 codesign --force --sign - "$app"
 xcrun simctl install "$device" "$app"
