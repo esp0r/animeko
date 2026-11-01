@@ -1,0 +1,120 @@
+name: iOS Private Mac
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Runner connectivity check or unsigned IPA build
+        required: true
+        type: choice
+        default: build-debug
+        options:
+          - check-runner
+          - build-debug
+          - build-release
+
+permissions:
+  contents: read
+
+concurrency:
+  group: animeko-private-ios
+  cancel-in-progress: false
+
+jobs:
+  ios:
+    if: >-
+      github.repository == 'esp0r/animeko' &&
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == 'refs/heads/main'
+    runs-on: animeko-ios
+    timeout-minutes: 180
+    env:
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+    steps:
+      - name: Verify runner identity and connectivity
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS_VALUE" = macOS
+          test "$RUNNER_ARCH_VALUE" = ARM64
+          {
+            echo "Runner: $RUNNER_NAME_VALUE"
+            echo "Platform: $RUNNER_OS_VALUE $RUNNER_ARCH_VALUE"
+            sw_vers
+            echo 'Connectivity is verified. An IPA build requires the build task to succeed.'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Check native build tools
+        if: inputs.task != 'check-runner'
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          pod --version
+          cmake --version
+          ninja --version
+
+      - uses: actions/checkout@v4
+        if: inputs.task != 'check-runner'
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        if: inputs.task != 'check-runner'
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+        if: inputs.task != 'check-runner'
+
+      - name: Configure iOS and memory limits for the 16 GB Mac
+        if: inputs.task != 'check-runner'
+        run: |
+          set -euo pipefail
+          cat > local.properties <<'PROPERTIES'
+          ani.enable.ios=true
+          ani.build.framework=true
+          ani.android.abis=arm64-v8a
+          kotlin.native.ignoreDisabledTargets=true
+          PROPERTIES
+          cat >> gradle.properties <<'PROPERTIES'
+
+          org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8
+          kotlin.daemon.jvmargs=-Xmx3g
+          kotlin.native.jvmArgs=-Xmx6g
+          org.gradle.workers.max=2
+          org.gradle.parallel=false
+          PROPERTIES
+
+      - name: Prepare CocoaPods
+        if: inputs.task != 'check-runner'
+        run: ./gradlew :app:shared:application:generateDummyFramework :app:ios:podInstall :app:ios:patchInfoPlist --no-parallel --max-workers=2 --stacktrace
+
+      - name: Build unsigned IPA
+        if: inputs.task != 'check-runner'
+        env:
+          BUILD_TASK: ${{ inputs.task }}
+        run: |
+          set -euo pipefail
+          case "$BUILD_TASK" in
+            build-debug) gradle_task=:app:ios:buildDebugIpa ;;
+            build-release) gradle_task=:app:ios:buildReleaseIpa ;;
+            *) exit 2 ;;
+          esac
+          ./gradlew "$gradle_task" --no-parallel --max-workers=2 --stacktrace
+
+      - name: Upload unsigned IPA for sideload signing
+        if: inputs.task != 'check-runner'
+        uses: actions/upload-artifact@v4
+        with:
+          name: animeko-ios-${{ inputs.task }}-${{ github.run_number }}
+          path: app/ios/build/archives/**/Animeko.ipa
+          if-no-files-found: error
+          retention-days: 7
