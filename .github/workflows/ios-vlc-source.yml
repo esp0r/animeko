@@ -1,0 +1,45 @@
+name: iOS VLC source synchronization tests
+on:
+  workflow_dispatch:
+  push:
+    branches: [experiment/vlc3-clock]
+permissions:
+  contents: read
+concurrency:
+  group: vlc-source-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  source:
+    runs-on: macos-15
+    timeout-minutes: 180
+    env:
+      SOURCE_ROOT: ${{ runner.temp }}/vlckit-source
+      MAKE_JOBS: '3'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.SOURCE_ROOT }}
+          key: vlc374-source-arm64-v1-${{ github.run_id }}
+          restore-keys: vlc374-source-arm64-v1-
+      - name: Build pinned VLC source
+        run: |
+          set -o pipefail
+          bash app/ios/tests/vlc/build-source.sh "$SOURCE_ROOT" 2>&1 | tee vlc-source-build.log
+      - name: Verify source framework with the production adapter
+        env:
+          VLC_SOURCE_FRAMEWORK: ${{ env.SOURCE_ROOT }}/build/source-simulator.xcarchive/Products/Library/Frameworks/MobileVLCKit.framework
+        run: bash app/ios/tests/vlc/run.sh
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: ${{ env.SOURCE_ROOT }}
+          key: vlc374-source-arm64-v1-${{ github.run_id }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vlc-source-diagnostics
+          path: |
+            vlc-source-build.log
+            app/ios/tests/vlc/build/*.log
+            app/ios/tests/vlc/build/*.json

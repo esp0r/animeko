@@ -1,9 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-pod install
 arch=$(uname -m)
-framework=$(find Pods/MobileVLCKit/MobileVLCKit.xcframework -name MobileVLCKit.framework -path '*simulator*' | head -1)
+framework=${VLC_SOURCE_FRAMEWORK:-}
+if [ -z "$framework" ]; then
+  pod install
+  framework=$(find Pods/MobileVLCKit/MobileVLCKit.xcframework -name MobileVLCKit.framework -path '*simulator*' | head -1)
+fi
 test -n "$framework"
 app="$PWD/build/VlcHarness.app"
 mkdir -p "$app"
