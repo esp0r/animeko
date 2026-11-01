@@ -136,7 +136,12 @@ final class SwiftVlcPlayer: NSObject, IosVlcPlayer, VLCMediaPlayerDelegate {
         #else
         media.addOption(":network-caching=1500")
         #endif
+        #if VLC_TESTING
+        let fileCache = ProcessInfo.processInfo.environment["VLC_TEST_CACHE"] ?? "500"
+        media.addOption(":file-caching=\(fileCache)")
+        #else
         media.addOption(":file-caching=500")
+        #endif
         if startPositionMillis > 0 {
             media.addOption(":start-time=\(Double(startPositionMillis) / 1000)")
         }

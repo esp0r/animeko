@@ -17,7 +17,7 @@ xcrun swiftc -D VLC_TESTING -sdk "$sdk" -target "${arch}-apple-ios16.0-simulator
   -lc++ -lxml2 -lz -lbz2 -liconv -Xlinker -ObjC \
   -Xlinker -rpath -Xlinker @executable_path/Frameworks \
   build/FrameProbe.o BridgeStub.swift ../../Animeko/SwiftVlcPlayer.swift RateProbe.swift main.swift -o "$app/VlcHarness"
-cp fixture.mkv "$app/"
+cp fixture.mkv rate-fixture.mkv "$app/"
 cp -R ../../Animeko/SubtitleFonts "$app/"
 mkdir -p "$app/Frameworks"
 cp -R "$framework" "$app/Frameworks/"
@@ -74,11 +74,14 @@ grep -q VLC_TEST_PASSED build/native-vlc.log
 python3 -m http.server 18765 --bind 127.0.0.1 > build/rate-http.log 2>&1 &
 http_pid=$!
 trap 'kill "$http_pid" 2>/dev/null || true' EXIT
-for cache in 1500 300 100; do
-  SIMCTL_CHILD_VLC_RATE_PROBE=1 SIMCTL_CHILD_VLC_TEST_CACHE="$cache" \
-    xcrun simctl launch --terminate-running-process --console "$device" org.animeko.vlctest > "build/rate-$cache.log" 2>&1
-  grep 'VLC_RATE_' "build/rate-$cache.log"
-  cp "$data/Library/Caches/animeko-player-diagnostics.log" "build/rate-$cache-diagnostics.log"
-  grep -q 'rate request=2.5' "build/rate-$cache-diagnostics.log"
-  grep -q 'rate request=1.0' "build/rate-$cache-diagnostics.log"
+for transport in file http; do
+  for cache in 1500 500 100 50; do
+    name="$transport-$cache"
+    SIMCTL_CHILD_VLC_RATE_PROBE=1 SIMCTL_CHILD_VLC_TEST_CACHE="$cache" SIMCTL_CHILD_VLC_TEST_TRANSPORT="$transport" \
+      xcrun simctl launch --terminate-running-process --console "$device" org.animeko.vlctest > "build/rate-$name.log" 2>&1
+    grep 'VLC_RATE_' "build/rate-$name.log"
+    cp "$data/Library/Caches/animeko-player-diagnostics.log" "build/rate-$name-diagnostics.log"
+    test "$(grep -c 'rate request=2.5' "build/rate-$name-diagnostics.log")" -eq 3
+    test "$(grep -c 'rate request=1.25' "build/rate-$name-diagnostics.log")" -eq 4
+  done
 done
