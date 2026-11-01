@@ -4,6 +4,8 @@ import UIKit
 @_silgen_name("frameProbeCount") func frameProbeCount() -> Int32
 @_silgen_name("frameProbeStage") func frameProbeStage(_ stage: Int32)
 @_silgen_name("frameProbeGap") func frameProbeGap(_ stage: Int32) -> Double
+@_silgen_name("frameProbeMark") func frameProbeMark(_ rate: Int32)
+@_silgen_name("frameProbeDump") func frameProbeDump()
 
 /// Measures steady playback through three 1.25x / 2.5x cycles.
 final class RateProbeDelegate: UIResponder, UIApplicationDelegate {
@@ -41,14 +43,17 @@ final class RateProbeDelegate: UIResponder, UIApplicationDelegate {
             guard let firstFrame else { return }
             let elapsed = now - firstFrame
             if stage == 0 {
+                frameProbeMark(1250)
                 player.setRate(rate: 1.25)
                 stage = 1
             } else if stage <= 6 && elapsed >= 3 + Double(stage - 1) * 2 {
                 let rate: Float = stage % 2 == 1 ? 2.5 : 1.25
                 frameProbeStage(stage % 2 == 1 ? 1 : 2)
+                frameProbeMark(Int32(rate * 1000))
                 player.setRate(rate: rate)
                 stage += 1
             } else if stage == 7 && elapsed >= 16 {
+                frameProbeDump()
                 let cache = ProcessInfo.processInfo.environment["VLC_TEST_CACHE"] ?? "default"
                 print("VLC_RATE_RESULT transport=\(transport) cache=\(cache) gap_ms=\((0...2).map { Int(frameProbeGap(Int32($0)) * 1000) }) frames=\(count)")
                 guard count > 200, player.positionMillis > 20000, player.phase == 3 else {
