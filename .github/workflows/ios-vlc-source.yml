@@ -31,7 +31,12 @@ jobs:
           /tmp/rate-timeline
   source:
     needs: pcm-probe
-    runs-on: macos-15
+    if: >-
+      github.repository == 'esp0r/animeko' &&
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      (github.ref == 'refs/heads/experiment/vlc3-clock' || github.ref == 'refs/heads/feat/ios-bittorrent')
+    runs-on: animeko-ios
     timeout-minutes: 180
     env:
       SOURCE_ROOT: ${{ github.workspace }}/.vlc-source
@@ -39,7 +44,16 @@ jobs:
       VLC_RATE_TRACE: ${{ github.event_name == 'push' && '1' || inputs.trace && '1' || '0' }}
       VLC_RATE_BOUNDARY: ${{ github.event_name == 'push' && '1' || inputs.boundary && '1' || '0' }}
     steps:
+      - name: Verify private Apple Silicon build tools
+        run: |
+          set -euo pipefail
+          test "${RUNNER_OS}" = macOS
+          test "${RUNNER_ARCH}" = ARM64
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Install compatible build tools
         run: brew list --versions make pkgconf >/dev/null || brew install make pkgconf
       - uses: actions/cache/restore@v4
