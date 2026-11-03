@@ -35,7 +35,7 @@
 +    cl->audio_end = cl->video_last = VLC_TICK_INVALID;
 
      vlc_mutex_unlock( &cl->lock );
-@@ -351,6 +361,28 @@
+@@ -351,6 +361,29 @@
      if( cl->b_has_reference )
      {
 -        /* Move the reference point (as if we were playing at the new rate
@@ -53,8 +53,9 @@
 +                point < mdate() + 2 * CLOCK_FREQ &&
 +                animeko_rate_append( &cl->presentation, cl->audio_end, i_rate ) )
 +            {
-+                cl->ref.i_system = point - (cl->audio_end - cl->ref.i_stream) * i_rate / INPUT_RATE_DEFAULT
-+                    - cl->i_pts_delay - cl->i_pts_delay * (i_rate - INPUT_RATE_DEFAULT) / INPUT_RATE_DEFAULT;
++                /* Input pacing is anchored at the last PCR, independently of
++                 * the decoded audio boundary used for presentation. */
++                cl->ref.i_system = cl->last.i_system - (cl->last.i_system - cl->ref.i_system) * i_rate / cl->i_rate;
 +                fprintf(stderr, "ANIMEKO_BOUNDARY stream=%"PRId64" system=%"PRId64" old=%d new=%d segments=%zu\n",
 +                    cl->audio_end, point, cl->i_rate, i_rate, cl->presentation.count);
 +                cl->i_rate = i_rate;
@@ -66,13 +67,13 @@
 +        /* Video-only streams use the input clock reference. */
          cl->ref.i_system = cl->last.i_system - (cl->last.i_system - cl->ref.i_system) * i_rate / cl->i_rate;
      }
-@@ -376,4 +408,5 @@
+@@ -376,4 +409,5 @@
              cl->ref.i_system += i_duration;
              cl->last.i_system += i_duration;
 +            animeko_rate_shift( &cl->presentation, i_duration );
          }
      }
-@@ -405,7 +438,7 @@
+@@ -405,7 +439,7 @@
   * input_clock_ConvertTS
   *****************************************************************************/
 -int input_clock_ConvertTS( vlc_object_t *p_object, input_clock_t *cl,
@@ -82,7 +83,7 @@
 +                           vlc_tick_t i_ts_bound, int category, vlc_tick_t duration )
  {
      assert( pi_ts0 );
-@@ -426,12 +459,20 @@
+@@ -426,12 +460,20 @@
      }
 
 -    /* */
@@ -107,7 +108,7 @@
 +            : ClockStreamToSystem( cl, stream );
          if( *pi_ts0 > cl->i_ts_max )
              cl->i_ts_max = *pi_ts0;
-@@ -442,6 +483,6 @@
+@@ -442,6 +484,6 @@
      if( pi_ts1 && *pi_ts1 > VLC_TICK_INVALID )
      {
 -        *pi_ts1 = ClockStreamToSystem( cl, *pi_ts1 + AvgGet( &cl->drift ) ) +
@@ -116,7 +117,7 @@
 +            : ClockStreamToSystem( cl, *pi_ts1 + AvgGet( &cl->drift ) ) + i_ts_delay;
      }
 
-@@ -464,4 +505,29 @@
+@@ -464,4 +506,29 @@
   * input_clock_GetRate: Return current rate
   *****************************************************************************/
 +int input_clock_ConvertTS( vlc_object_t *obj, input_clock_t *cl, int *rate,
@@ -146,13 +147,13 @@
 +
  int input_clock_GetRate( input_clock_t *cl )
  {
-@@ -520,4 +586,5 @@
+@@ -520,4 +587,5 @@
      cl->ref.i_system += i_offset;
      cl->last.i_system += i_offset;
 +    animeko_rate_shift( &cl->presentation, i_offset );
 
      vlc_mutex_unlock( &cl->lock );
-@@ -565,5 +632,9 @@
+@@ -565,5 +633,9 @@
       */
      if( cl->i_pts_delay < i_pts_delay )
 +    {
@@ -293,7 +294,7 @@
 +    vout->p->displayed.timestamp = animeko_rate_retime(vout->p->displayed.timestamp, boundary, old_rate, new_rate);
 +    vout->p->step.timestamp = VLC_TICK_INVALID;
 +    vout->p->step.last = VLC_TICK_INVALID;
-+    msg_Warn(vout, "ANIMEKO_VIDEO_RETIME now=%"PRId64" boundary=%"PRId64" old=%d new=%d queued=%u",
++    msg_Warn(vout, "ANIMEKO_VIDEO_RETIME rate now=%"PRId64" boundary=%"PRId64" old=%d new=%d queued=%u",
 +             mdate(), boundary, old_rate, new_rate, count);
 +}
 +

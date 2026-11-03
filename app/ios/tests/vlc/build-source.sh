@@ -48,6 +48,9 @@ if [ "${VLC_RATE_BOUNDARY:-0}" = 1 ]; then
   cp "$script_dir/patches/clock-boundary.patch" "$root/.animeko-clock-boundary.patch"
 fi
 cp "$script_dir/rate_timeline.h" "$root/libvlc/vlc/src/input/animeko_rate_timeline.h"
+if [ "${VLC_RATE_BOUNDARY:-0}" = 1 ]; then
+  python3 "$script_dir/test_input_clock.py" "$root/libvlc/vlc/src/input/clock.c"
+fi
 cp "$script_dir/pcm_probe.h" "$root/libvlc/vlc/modules/audio_output/animeko_pcm_probe.h"
 # The upstream symbol collector assumes an arm64 build also has a device slice.
 # Each job produces one arm64 slice, with the app's iOS minimum.
